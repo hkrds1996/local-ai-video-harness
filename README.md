@@ -20,16 +20,20 @@ Implemented:
 - history polling and server-error detection;
 - download of returned video, image, GIF, and audio outputs;
 - persistent state and basic resume behavior.
+- optional automatic ComfyUI startup and shutdown;
+- conversion of the tested MiniMax H3 browser-canvas workflow into API jobs;
+- model-specific duration injection for the included H3 adapter;
+- independent Windows SAPI narration;
+- deterministic English title and caption rendering;
+- final audio/video composition that replaces model-generated audio;
+- preservation of generation timing across resumed runs.
 
-Not yet implemented in the public generic runner:
+Not yet implemented:
 
-- automatic ComfyUI startup and shutdown;
-- browser canvas workflow conversion;
-- model-specific duration or resolution injection;
 - first-frame or last-frame continuity chaining;
-- independent local narration;
-- deterministic subtitle and chart rendering;
-- final audio/video composition;
+- automatic GPU power and energy telemetry;
+- retry backoff and automated quality scoring;
+- generic conversion for arbitrary browser-canvas workflows.
 - automatic GPU power and energy telemetry;
 - retry backoff and quality scoring.
 
@@ -72,6 +76,8 @@ local-ai-video-harness/
 |   |-- cli.py
 |   |-- comfy_api.py
 |   |-- manifest.py
+|   |-- minimax_h3_canvas.py
+|   |-- postprocess.py
 |   `-- runner.py
 |-- LICENSE
 |-- pyproject.toml
@@ -87,7 +93,7 @@ public project manifest
         +
 private local configuration
         +
-API-format workflow template
+API-format workflow template or supported H3 canvas workflow
         |
         v
 manifest validation
@@ -115,8 +121,8 @@ For validation and planning:
 
 For generation:
 
-- a running local ComfyUI server;
-- a successfully tested API-format workflow;
+- a local ComfyUI server, either already running or configured for automatic startup;
+- a successfully tested API-format workflow, or the supported MiniMax H3 canvas workflow;
 - locally installed model weights and custom nodes required by that workflow;
 - enough GPU memory and disk capacity for the chosen model;
 - permission to use the model, workflow, voice, fonts, and generated output under their respective licenses.
@@ -190,19 +196,22 @@ Edit the local copy:
   "seed_node": "15",
   "seed_input": "seed",
   "timeout_seconds": 3600,
-  "poll_seconds": 2
+  "poll_seconds": 2,
+  "workflow_format": "api",
+  "start_command": ["C:/path/to/start_comfyui.bat"],
+  "start_cwd": "C:/path/to/ComfyUI_windows_portable"
 }
 ```
 
 `config.local.json` is ignored by Git. Do not commit private paths, tokens, internal hostnames, or credentials.
 
-The workflow must be a ComfyUI API-format JSON object whose top-level keys are node identifiers. A browser canvas workflow is not accepted by the current generic runner.
+For generic workflows, use ComfyUI API format. The repository also includes a narrow adapter for the tested MiniMax H3 browser-canvas export. It is intentionally model-specific and does not imply compatibility with arbitrary canvas workflows.
 
 See [Configuration Reference](docs/CONFIGURATION.md) for field definitions and node-mapping guidance.
 
 ## Run headlessly
 
-Start the local ComfyUI server, then execute:
+Execute the command below. If the server is unavailable and `start_command` is configured, the harness starts it and waits for readiness without browser interaction.
 
 ```powershell
 local-ai-video run `
@@ -219,6 +228,8 @@ For every shot, the runner:
 5. detects a reported server error;
 6. downloads returned media through `/view`;
 7. writes the shot result to `state.json`.
+
+When postproduction is enabled, it then synthesizes the approved English narration with Windows SAPI, renders deterministic titles and captions, removes the model audio, and composes the final MP4.
 
 Run the same command after an interruption. Completed shots are skipped when every recorded output file still exists.
 
@@ -245,7 +256,7 @@ The public manifest expresses what should be generated, not where a model is ins
 }
 ```
 
-The current runner uses `duration_seconds` for validation and planning only. A model-specific adapter must map duration into the correct workflow node.
+The generic API path uses `duration_seconds` for validation and planning only. The included MiniMax H3 adapter maps it into that model's workflow inputs.
 
 ## State and reproducibility
 
@@ -305,16 +316,14 @@ See [Troubleshooting](docs/TROUBLESHOOTING.md) before increasing timeouts or res
 
 The next engineering milestones are:
 
-1. workflow adapters for duration, resolution, and output prefix mappings;
-2. canvas-to-API conversion with explicit compatibility checks;
-3. exponential retry with transient and permanent failure classification;
-4. frame-conditioned continuity between short clips;
-5. independent local narration and deterministic subtitle rendering;
-6. final timeline composition and audio replacement;
-7. GPU, energy, runtime, and storage telemetry;
-8. quality reports and cost-per-publishable-output metrics;
-9. unit tests and a GPU-free mocked API integration test;
-10. release artifacts for a complete English demo.
+1. additional workflow adapters with explicit compatibility checks;
+2. exponential retry with transient and permanent failure classification;
+3. frame-conditioned continuity between short clips;
+4. cross-platform local narration providers;
+5. GPU, energy, runtime, and storage telemetry;
+6. quality reports and cost-per-publishable-output metrics;
+7. unit tests and a GPU-free mocked API integration test;
+8. configurable caption themes and timeline transitions.
 
 ## Contributing
 

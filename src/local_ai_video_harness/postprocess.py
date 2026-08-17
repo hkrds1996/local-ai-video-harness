@@ -91,14 +91,14 @@ def _overlay(image: Image.Image, caption: str, fonts):
     draw = ImageDraw.Draw(image, "RGBA")
     width, height = image.size
     title_font, label_font, caption_font = fonts
-    draw.rectangle((0, 0, width, 155), fill=(5, 12, 22, 190))
+    draw.rectangle((0, 0, width, 155), fill=(5, 12, 22, 255))
     draw.text((42, 34), "LOCAL AI VIDEO EXPERIMENT", font=title_font, fill=(255, 255, 255, 255))
     draw.text((44, 100), "LOCAL VIDEO MODEL  |  AUTOMATED HARNESS", font=label_font, fill=(90, 196, 255, 255))
     wrapped = _wrap_words(caption, 31)
     box = draw.multiline_textbbox((0, 0), wrapped, font=caption_font, spacing=12, align="center")
     text_height = box[3] - box[1]
     top = height - text_height - 115
-    draw.rounded_rectangle((28, top - 22, width - 28, height - 55), 18, fill=(0, 0, 0, 205))
+    draw.rounded_rectangle((28, top - 22, width - 28, height - 55), 18, fill=(0, 0, 0, 255))
     draw.multiline_text(
         (width / 2, top),
         wrapped,
@@ -109,6 +109,12 @@ def _overlay(image: Image.Image, caption: str, fonts):
         align="center",
     )
     return image.convert("RGB")
+
+
+def _is_nearly_black(image: Image.Image):
+    grayscale = image.convert("L").resize((32, 32))
+    pixels = list(grayscale.getdata())
+    return sum(pixels) / len(pixels) < 4
 
 
 def _render_video(sections: list[dict], durations: list[float], destination: Path, render: dict, font_path: str):
@@ -132,10 +138,13 @@ def _render_video(sections: list[dict], durations: list[float], destination: Pat
             stream = next(item for item in container.streams if item.type == "video")
             decoded = False
             for frame in container.decode(stream):
-                decoded = True
                 if produced >= required:
                     break
-                image = ImageOps.fit(frame.to_image(), (width, height), method=Image.Resampling.LANCZOS)
+                source_image = frame.to_image()
+                if not decoded and _is_nearly_black(source_image):
+                    continue
+                decoded = True
+                image = ImageOps.fit(source_image, (width, height), method=Image.Resampling.LANCZOS)
                 image = _overlay(image, section["text"], fonts)
                 output_frame = av.VideoFrame.from_image(image)
                 output_frame.pts = frame_cursor

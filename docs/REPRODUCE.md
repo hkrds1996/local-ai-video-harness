@@ -1,13 +1,13 @@
 # Reproduction Guide
 
-This guide covers the repository's currently implemented path: validate a manifest, inspect the execution plan, and submit an API-format workflow to an already running local ComfyUI server. It does not install model weights or modify a ComfyUI installation.
+This guide covers the implemented path: validate a manifest, inspect the execution plan, start or connect to local ComfyUI, submit a supported workflow, resume completed shots, and optionally compose narration and captions. It does not install model weights or modify a ComfyUI installation.
 
 ## 1. Prerequisites
 
 - Windows, Linux, or macOS with Python 3.10 or newer.
 - A local ComfyUI installation if generation will be executed.
 - A model and workflow that can run successfully in that installation.
-- An API-format workflow. A browser canvas export is not the same format.
+- An API-format workflow, or a MiniMax H3 canvas export compatible with the included adapter.
 - Sufficient GPU memory, disk space, and permission to use the selected model.
 
 ## 2. Prepare the Python environment
@@ -35,16 +35,16 @@ python -m local_ai_video_harness.cli plan --manifest examples/english-rto-demo/p
 
 Validation checks required project fields, render settings, shot identifiers, prompts, and positive durations. Planning prints the total target duration without contacting a model server.
 
-## 4. Prepare an API-format workflow
+## 4. Prepare a workflow
 
-Open the workflow in your own ComfyUI installation and export it in API format. Identify:
+For a generic workflow, export it in API format and identify:
 
 - the node that receives the positive prompt;
 - the name of its text input;
 - the node that receives the random seed;
 - the name of its seed input.
 
-The current runner modifies only prompt and seed inputs. Model-specific settings such as duration, resolution, first-frame conditioning, audio, or filename prefixes must already be configured in the workflow, or added in a future adapter.
+The generic runner modifies prompt and seed inputs. The included MiniMax H3 adapter additionally converts the tested canvas export and maps prompt, seed, duration, and output prefix. Other canvas exports require their own adapters.
 
 ## 5. Create a local configuration
 
@@ -56,9 +56,9 @@ Copy-Item config.example.json config.local.json
 
 Edit `config.local.json` with the local server URL, workflow path, and node mappings. The local file is ignored by Git because it may contain machine-specific paths.
 
-## 6. Start the local backend
+## 6. Configure or start the local backend
 
-Start ComfyUI using the launch method appropriate for the local installation. Verify that its API responds at the configured URL. The harness does not require browser interaction, but the server must already be running in the current implementation.
+Either start ComfyUI before the run, or configure `start_command`, `start_cwd`, and `startup_timeout_seconds`. If the API is unavailable, the harness launches that command and waits for readiness. No browser interaction is required.
 
 ## 7. Execute the demo
 
@@ -68,7 +68,7 @@ python -m local_ai_video_harness.cli run `
   --config config.local.json
 ```
 
-For every shot, the runner clones the workflow, injects the prompt and seed, submits the job, waits for history, downloads returned media, and updates `state.json`.
+For every shot, the runner prepares the workflow, submits the job, waits for history, downloads returned media, updates `state.json`, and records generation timing. If postproduction is enabled, it also generates local narration, deterministic captions, and the final MP4.
 
 ## 8. Resume an interrupted run
 
@@ -82,11 +82,11 @@ Copy `docs/EXPERIMENT_LOG_TEMPLATE.md`, record the run, and publish only sanitiz
 
 ## 10. Expected limitations
 
-- The runner accepts API-format workflows only.
-- It does not start or stop ComfyUI.
-- It does not yet set model-specific duration or resolution nodes.
+- Arbitrary browser-canvas workflows are not supported; the current converter is specific to the tested MiniMax H3 graph.
+- Automatic startup requires a valid local command, and graceful shutdown depends on the configured launcher behavior.
+- Generic API workflows do not receive model-specific duration or resolution injection.
 - It does not yet chain the final frame of one shot into the next.
-- It downloads all returned media types and does not yet compose a final timeline.
+- Windows SAPI is the only built-in narration provider.
 - It provides resume behavior but not automatic retry backoff.
 
 These limitations are documented so the repository does not claim capabilities it has not implemented.

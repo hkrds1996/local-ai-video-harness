@@ -34,4 +34,4 @@ Do not ask the video model to render exact titles, citations, or subtitles. Gene
 
 ## Output continuity is weak
 
-Continuity is not implemented in the generic runner. A model-specific adapter can extract the last frame of a completed shot, upload it as a conditioning image, inject the returned filename into the next workflow, and record a transition quality metric.
+Cross-shot continuity is not implemented. A future model-specific adapter can extract the last accepted frame, upload it as a conditioning image, inject the returned filename into the next workflow, and record a transition quality metric.

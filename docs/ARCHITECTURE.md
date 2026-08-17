@@ -16,7 +16,7 @@ manifest validation -----> execution plan
 workflow template + local config
     |
     v
-shot-specific prompt and seed injection
+API workflow injection or supported H3 canvas conversion
     |
     v
 ComfyUI HTTP API
@@ -28,6 +28,9 @@ ComfyUI HTTP API
     |
     v
 state.json + output files
+    |
+    v
+local narration + deterministic captions + final MP4
 ```
 
 ## Components
@@ -46,7 +49,11 @@ state.json + output files
 
 ### Execution layer
 
-`runner.py` combines a project manifest with an untracked local configuration. It loads an API-format workflow, clones it for every shot, injects shot-specific values, and records successful outputs.
+`runner.py` combines a project manifest with an untracked local configuration. It can clone a generic API-format workflow or invoke the included MiniMax H3 canvas adapter, inject shot-specific values, start the configured backend when necessary, and record successful outputs.
+
+### Postproduction layer
+
+`postprocess.py` synthesizes narration through Windows SAPI, renders exact English text with installed fonts, loops or trims each visual to the narration duration, discards unreliable model audio, and writes a final H.264/AAC MP4.
 
 ### Backend layer
 
@@ -79,15 +86,20 @@ Implemented:
 - ComfyUI queue and history polling;
 - media download;
 - basic state-based resume.
+- optional backend startup and shutdown;
+- MiniMax H3 canvas-workflow conversion;
+- model-specific duration injection for that adapter;
+- local SAPI narration and deterministic captions;
+- final timeline composition and audio replacement;
+- generation timing retained across resume runs.
 
 Planned:
 
-- canvas-to-API workflow conversion;
-- model-specific duration and resolution mappings;
+- adapters for additional canvas workflows and models;
+- generic duration and resolution mappings;
 - exponential retry and failure classification;
 - first-frame and last-frame continuity adapters;
-- independent local narration;
-- deterministic captions and charts;
-- final audio/video composition;
+- cross-platform narration providers;
+- configurable captions and charts;
 - energy and GPU telemetry;
 - automated quality reports.

@@ -8,6 +8,10 @@
   "seed_input": "seed",
   "timeout_seconds": 3600,
   "poll_seconds": 2,
+  "startup_timeout_seconds": 240,
+  "start_command": ["C:/path/to/start_comfyui.bat"],
+  "start_cwd": "C:/path/to/ComfyUI_windows_portable",
+  "stop_backend_on_exit": false,
   "workflow_format": "api",
   "postproduction": {
     "enabled": false,

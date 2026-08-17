@@ -84,14 +84,21 @@ def run(project_path: Path, config_path: Path):
 
         state_path = output_dir / "state.json"
         state = json.loads(state_path.read_text(encoding="utf-8")) if state_path.exists() else {"shots": {}}
-        metrics = {"started_at_epoch": time.time(), "shots": {}}
+        metrics_path = output_dir / "metrics.json"
+        if metrics_path.exists():
+            metrics = json.loads(metrics_path.read_text(encoding="utf-8"))
+        else:
+            metrics = {"shots": {}}
+        run_started = time.time()
+        metrics["last_run_started_at_epoch"] = run_started
 
         for index, shot in enumerate(project["shots"], 1):
             shot_id = shot["id"]
             previous = state["shots"].get(shot_id, {})
             if previous.get("files") and all(Path(item).exists() for item in previous["files"]):
                 print(f"[{index}/{len(project['shots'])}] resume {shot_id}")
-                metrics["shots"][shot_id] = {"resumed": True, "seconds": 0}
+                shot_metrics = metrics["shots"].setdefault(shot_id, {})
+                shot_metrics["resumed_last_run"] = True
                 continue
 
             started = time.perf_counter()
@@ -119,12 +126,24 @@ def run(project_path: Path, config_path: Path):
                 "duration_seconds": shot["duration_seconds"],
             }
             state_path.write_text(json.dumps(state, ensure_ascii=False, indent=2), encoding="utf-8")
-            metrics["shots"][shot_id] = {"resumed": False, "seconds": round(elapsed, 3)}
+            metrics["shots"][shot_id] = {
+                "generation_seconds": round(elapsed, 3),
+                "resumed_last_run": False,
+            }
             print(f"[{index}/{len(project['shots'])}] complete {shot_id} in {elapsed:.1f}s")
 
-        metrics["finished_at_epoch"] = time.time()
-        metrics["total_seconds"] = round(metrics["finished_at_epoch"] - metrics["started_at_epoch"], 3)
-        (output_dir / "metrics.json").write_text(json.dumps(metrics, indent=2), encoding="utf-8")
+        metrics["last_run_finished_at_epoch"] = time.time()
+        metrics["last_run_total_seconds"] = round(
+            metrics["last_run_finished_at_epoch"] - run_started, 3
+        )
+        metrics["generation_total_seconds"] = round(
+            sum(
+                float(item.get("generation_seconds", 0))
+                for item in metrics["shots"].values()
+            ),
+            3,
+        )
+        metrics_path.write_text(json.dumps(metrics, indent=2), encoding="utf-8")
 
         post = config.get("postproduction", {})
         if post.get("enabled"):

@@ -21,7 +21,7 @@ Each shot requires:
 | `prompt` | string | Model-facing visual instruction |
 | `duration_seconds` | number | Planned duration used for validation and reporting |
 
-The current generic runner does not inject `duration_seconds` into the workflow. The workflow must already be configured for the intended duration.
+The generic API path does not inject `duration_seconds`. The included MiniMax H3 adapter maps it into that model's graph.
 
 ## Private local configuration
 
@@ -32,12 +32,20 @@ The current generic runner does not inject `duration_seconds` into the workflow.
 | `server_url` | yes | none | Base URL of the local ComfyUI API |
 | `workflow_api` | yes | none | Absolute or working-directory-relative path to an API-format workflow |
 | `output_dir` | no | `outputs` | State and media destination |
-| `prompt_node` | yes | none | Node identifier containing the prompt input |
+| `workflow_format` | no | `auto` | `api`, `canvas`, or automatic format detection |
+| `prompt_node` | API workflows | none | Node identifier containing the prompt input |
 | `prompt_input` | no | `text` | Prompt input name |
-| `seed_node` | yes | none | Node identifier containing the seed input |
+| `seed_node` | API workflows | none | Node identifier containing the seed input |
 | `seed_input` | no | `seed` | Seed input name |
 | `timeout_seconds` | no | `3600` | Maximum wait per submitted prompt |
 | `poll_seconds` | no | `2` | History polling interval |
+| `startup_timeout_seconds` | no | `240` | Seconds to wait after launching the backend |
+| `start_command` | no | none | JSON array containing the backend executable and arguments |
+| `start_cwd` | no | current directory | Working directory for the backend process |
+| `stop_backend_on_exit` | no | `false` | Terminate a backend started by the harness after the run |
+| `postproduction` | no | disabled | Narration, captions, font, and final-output settings |
+
+The current postproduction provider is Windows SAPI. Keep machine-specific voice names, paths, and launcher commands in `config.local.json`.
 
 ## Finding node identifiers
 
