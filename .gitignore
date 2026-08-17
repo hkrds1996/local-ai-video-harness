@@ -1,0 +1,16 @@
+__pycache__/
+*.py[cod]
+.venv/
+.env
+outputs/
+generated/
+*.mp4
+*.mov
+*.wav
+*.mp3
+*.srt
+*.png
+*.jpg
+*.workflow.json
+cost-ledger.local.json
+config.local.json

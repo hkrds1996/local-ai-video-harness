@@ -1,0 +1,20 @@
+{
+  "server_url": "http://127.0.0.1:8188",
+  "workflow_api": "C:/path/to/public/api-format-workflow.json",
+  "output_dir": "outputs",
+  "prompt_node": "12",
+  "prompt_input": "text",
+  "seed_node": "15",
+  "seed_input": "seed",
+  "timeout_seconds": 3600,
+  "poll_seconds": 2,
+  "workflow_format": "api",
+  "postproduction": {
+    "enabled": false,
+    "provider": "sapi",
+    "voice": "Microsoft Zira Desktop",
+    "rate": 1,
+    "font": "C:/Windows/Fonts/arial.ttf",
+    "final_output": "english-demo-final.mp4"
+  }
+}

@@ -1,0 +1,16 @@
+LICENSE
+README.md
+pyproject.toml
+src/local_ai_video_harness/__init__.py
+src/local_ai_video_harness/cli.py
+src/local_ai_video_harness/comfy_api.py
+src/local_ai_video_harness/manifest.py
+src/local_ai_video_harness/minimax_h3_canvas.py
+src/local_ai_video_harness/postprocess.py
+src/local_ai_video_harness/runner.py
+src/local_ai_video_harness.egg-info/PKG-INFO
+src/local_ai_video_harness.egg-info/SOURCES.txt
+src/local_ai_video_harness.egg-info/dependency_links.txt
+src/local_ai_video_harness.egg-info/entry_points.txt
+src/local_ai_video_harness.egg-info/requires.txt
+src/local_ai_video_harness.egg-info/top_level.txt
