@@ -5,6 +5,7 @@ from fractions import Fraction
 from pathlib import Path
 
 import av
+import imageio_ffmpeg
 from PIL import Image, ImageDraw, ImageFont, ImageOps
 
 
@@ -121,65 +122,89 @@ def _render_video(sections: list[dict], durations: list[float], destination: Pat
     fps = int(render["fps"])
     width = int(render["width"])
     height = int(render["height"])
-    output = av.open(str(destination), "w")
-    stream_out = output.add_stream("libx264", rate=fps)
-    stream_out.width = width
-    stream_out.height = height
-    stream_out.pix_fmt = "yuv420p"
-    stream_out.options = {"crf": "19", "preset": "medium"}
+    encoder = subprocess.Popen(
+        [
+            imageio_ffmpeg.get_ffmpeg_exe(),
+            "-y",
+            "-loglevel",
+            "error",
+            "-f",
+            "rawvideo",
+            "-pix_fmt",
+            "rgb24",
+            "-s:v",
+            f"{width}x{height}",
+            "-r",
+            str(fps),
+            "-i",
+            "pipe:0",
+            "-an",
+            "-c:v",
+            "libx264",
+            "-crf",
+            "19",
+            "-preset",
+            "medium",
+            "-pix_fmt",
+            "yuv420p",
+            str(destination),
+        ],
+        stdin=subprocess.PIPE,
+    )
+    if encoder.stdin is None:
+        raise RuntimeError("Unable to open the FFmpeg video input pipe")
     fonts = (_font(font_path, 36), _font(font_path, 21), _font(font_path, 42))
-    frame_cursor = 0
-    for index, (section, duration) in enumerate(zip(sections, durations), 1):
-        required = max(1, round(duration * fps))
-        produced = 0
-        print(f"[{index}/{len(sections)}] compose {section['shot_id']} ({duration:.1f}s)")
-        while produced < required:
-            container = av.open(str(section["video"]))
-            stream = next(item for item in container.streams if item.type == "video")
-            decoded = False
-            for frame in container.decode(stream):
-                if produced >= required:
-                    break
-                source_image = frame.to_image()
-                if not decoded and _is_nearly_black(source_image):
-                    continue
-                decoded = True
-                image = ImageOps.fit(source_image, (width, height), method=Image.Resampling.LANCZOS)
-                image = _overlay(image, section["text"], fonts)
-                output_frame = av.VideoFrame.from_image(image)
-                output_frame.pts = frame_cursor
-                output_frame.time_base = Fraction(1, fps)
-                frame_cursor += 1
-                produced += 1
-                for packet in stream_out.encode(output_frame):
-                    output.mux(packet)
-            container.close()
-            if not decoded:
-                raise RuntimeError(f"No video frames found: {section['video']}")
-    for packet in stream_out.encode():
-        output.mux(packet)
-    output.close()
+    try:
+        for index, (section, duration) in enumerate(zip(sections, durations), 1):
+            required = max(1, round(duration * fps))
+            produced = 0
+            print(f"[{index}/{len(sections)}] compose {section['shot_id']} ({duration:.1f}s)")
+            while produced < required:
+                container = av.open(str(section["video"]))
+                stream = next(item for item in container.streams if item.type == "video")
+                decoded = False
+                for frame in container.decode(stream):
+                    if produced >= required:
+                        break
+                    source_image = frame.to_image()
+                    if not decoded and _is_nearly_black(source_image):
+                        continue
+                    decoded = True
+                    image = ImageOps.fit(source_image, (width, height), method=Image.Resampling.LANCZOS)
+                    image = _overlay(image, section["text"], fonts)
+                    encoder.stdin.write(image.tobytes())
+                    produced += 1
+                container.close()
+                if not decoded:
+                    raise RuntimeError(f"No video frames found: {section['video']}")
+    finally:
+        encoder.stdin.close()
+    if encoder.wait() != 0:
+        raise RuntimeError("FFmpeg failed while encoding the composed video")
 
 
 def _remux(video: Path, audio: Path, destination: Path):
-    video_in = av.open(str(video))
-    audio_in = av.open(str(audio))
-    video_stream = next(item for item in video_in.streams if item.type == "video")
-    audio_stream = next(item for item in audio_in.streams if item.type == "audio")
-    output = av.open(str(destination), "w")
-    video_out = output.add_stream_from_template(video_stream)
-    audio_out = output.add_stream_from_template(audio_stream)
-    for packet in video_in.demux(video_stream):
-        if packet.dts is not None:
-            packet.stream = video_out
-            output.mux(packet)
-    for packet in audio_in.demux(audio_stream):
-        if packet.dts is not None:
-            packet.stream = audio_out
-            output.mux(packet)
-    output.close()
-    video_in.close()
-    audio_in.close()
+    subprocess.run(
+        [
+            imageio_ffmpeg.get_ffmpeg_exe(),
+            "-y",
+            "-loglevel",
+            "error",
+            "-i",
+            str(video),
+            "-i",
+            str(audio),
+            "-map",
+            "0:v:0",
+            "-map",
+            "1:a:0",
+            "-c",
+            "copy",
+            "-shortest",
+            str(destination),
+        ],
+        check=True,
+    )
 
 
 def _video_for_shot(state: dict, shot_id: str):
@@ -199,7 +224,7 @@ def compose_project(project: dict, state: dict, output_dir: Path, final_output: 
         raise ValueError("narration.segments is required for postproduction")
     narration_dir = output_dir / "narration"
     narration_dir.mkdir(parents=True, exist_ok=True)
-    voice = config.get("voice", "Microsoft David Desktop")
+    voice = config.get("voice", "Microsoft Zira Desktop")
     rate = int(config.get("rate", 1))
     sections = []
     audio_files = []

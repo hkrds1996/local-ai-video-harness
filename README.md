@@ -19,7 +19,7 @@ Implemented:
 - headless queue submission through the local HTTP API;
 - history polling and server-error detection;
 - download of returned video, image, GIF, and audio outputs;
-- persistent state and basic resume behavior.
+- persistent state and basic resume behavior;
 - optional automatic ComfyUI startup and shutdown;
 - conversion of the tested MiniMax H3 browser-canvas workflow into API jobs;
 - model-specific duration injection for the included H3 adapter;
@@ -34,8 +34,6 @@ Not yet implemented:
 - automatic GPU power and energy telemetry;
 - retry backoff and automated quality scoring;
 - generic conversion for arbitrary browser-canvas workflows.
-- automatic GPU power and energy telemetry;
-- retry backoff and quality scoring.
 
 The distinction is deliberate: documentation should describe the code that exists, while the roadmap describes the experiment that will be built next.
 
