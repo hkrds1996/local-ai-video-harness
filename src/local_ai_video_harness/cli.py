@@ -3,10 +3,9 @@
 from __future__ import annotations
 
 import argparse
-import json
 from pathlib import Path
 
-from .continuity import check_project
+from .continuity import run_check
 from .manifest import load_manifest, shot_duration, validate_manifest
 from .runner import run
 
@@ -67,11 +66,7 @@ def main(argv=None) -> int:
         )
         return 0
     if args.command == "check":
-        report = check_project(args.manifest, args.media_dir, args.max_seconds)
-        report_path = args.report or args.manifest.with_name("continuity_report.json")
-        report_path.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
-        print(json.dumps(report, ensure_ascii=False, indent=2))
-        return 0 if not report["errors"] else 2
+        return run_check(args.manifest, args.media_dir, args.max_seconds, args.report)
     return plan(args.manifest)
 
 

@@ -89,6 +89,20 @@ def check_project(project_path: Path, media_dir: Path = None, max_seconds: float
     }
 
 
+def run_check(project_path: Path, media_dir: Path = None, max_seconds: float = 15.0,
+              report_path: Path = None) -> int:
+    """Run continuity checks, write the JSON report, and return the exit code.
+
+    Shared by the ``local-ai-video check`` command and the standalone
+    ``local-ai-video-continuity`` entry point.
+    """
+    report = check_project(project_path, media_dir, max_seconds)
+    target = report_path or project_path.with_name("continuity_report.json")
+    target.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
+    print(json.dumps(report, ensure_ascii=False, indent=2))
+    return 0 if not report["errors"] else 2
+
+
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description="Validate H3 shot duration and narrative continuity")
     parser.add_argument("project", type=Path)
@@ -96,11 +110,7 @@ def main(argv=None) -> int:
     parser.add_argument("--max-seconds", type=float, default=15.0)
     parser.add_argument("--report", type=Path)
     args = parser.parse_args(argv)
-    report = check_project(args.project, args.media_dir, args.max_seconds)
-    report_path = args.report or args.project.with_name("continuity_report.json")
-    report_path.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
-    print(json.dumps(report, ensure_ascii=False, indent=2))
-    return 0 if not report["errors"] else 2
+    return run_check(args.project, args.media_dir, args.max_seconds, args.report)
 
 
 if __name__ == "__main__":

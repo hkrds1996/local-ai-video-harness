@@ -1,17 +1,17 @@
 """Execution layer: backend startup, shot generation, and postproduction.
 
 The runner combines a public project manifest with an untracked local
-configuration. For every shot it clones or converts the workflow template,
-injects the shot prompt, seed, and duration, submits the job to the local
-ComfyUI HTTP API, polls history, downloads the returned media, and persists
-state so interrupted runs can resume.
+configuration. Two classes own the two top-level phases:
 
-Two top-level modes are supported:
+- :class:`GenerationRunner` queues shots on the local ComfyUI HTTP API,
+  downloads media, persists state so interrupted runs resume, and
+  concatenates the clips;
+- :class:`PostproductionRunner` synthesizes narration with an independent
+  TTS provider and composes the final editorial MP4 from existing clips.
 
-- generation (default): queue shots and concatenate the returned clips;
-- postproduction (``--post-only``): synthesize narration with an independent
-  TTS provider, render the editorial overlay (titles, source badges, timed
-  data cards, subtitles), and compose the final MP4 from existing clips.
+``run()`` is the dispatch entry used by the CLI. It also honors the legacy
+``postproduction.enabled`` config switch by running postproduction after
+generation, matching the behaviour of earlier versions.
 """
 from __future__ import annotations
 
@@ -123,29 +123,138 @@ def _concat(output: Path, files: list[Path]) -> None:
     concat_videos(files, output)
 
 
-def run_postproduction(project_path: Path, project: dict, output_dir: Path, config: dict, force_tts: bool):
+class GenerationRunner:
+    """Queue shots, download outputs, and concatenate them into one clip."""
+
+    def __init__(self, project: dict, config: dict, out_dir: Path, resume: bool = False):
+        self.project = project
+        self.config = config
+        self.out_dir = out_dir
+        self.resume = resume
+        self.state_path = out_dir / "state.json"
+        self.metrics_path = out_dir / "metrics.json"
+
+    def _load_state(self) -> dict:
+        state = json.loads(self.state_path.read_text(encoding="utf-8")) if self.state_path.exists() else {"shots": {}}
+        metrics = json.loads(self.metrics_path.read_text(encoding="utf-8")) if self.metrics_path.exists() else {"shots": {}}
+        return state, metrics
+
+    def prepare_backend(self) -> tuple[ComfyClient, object, object]:
+        """Return (client, backend_process, log_handle); the process may be None."""
+        server = self.config.get("server_url", "http://127.0.0.1:8188")
+        client = ComfyClient(server, int(self.config.get("timeout_seconds", 3600)), float(self.config.get("poll_seconds", 2)))
+        try:
+            client.wait_until_ready(seconds=3)
+            print("Local backend is already running")
+            return client, None, None
+        except TimeoutError:
+            print("Starting local backend")
+            process, log = _start_backend(self.config, self.out_dir)
+            if process is None:
+                raise RuntimeError("Backend is not ready and no start command is configured")
+            client.wait_until_ready(seconds=int(self.config.get("startup_timeout_seconds", 240)))
+            return client, process, log
+
+    def generate(self, client: ComfyClient, workflow_source: dict) -> list[Path]:
+        """Submit every shot and return the downloaded clip paths."""
+        shots = self.project["shots"]
+        state, metrics = self._load_state()
+        run_started = time.time()
+        metrics["last_run_started_at_epoch"] = run_started
+        rendered: list[Path] = []
+
+        for index, shot in enumerate(shots, 1):
+            shot_id = str(shot.get("id", f"shot-{index:02d}"))
+            previous = state["shots"].get(shot_id, {})
+            if self.resume and previous.get("files") and all(Path(item).exists() for item in previous["files"]):
+                print(f"[{index}/{len(shots)}] resume {shot_id}")
+                metrics["shots"].setdefault(shot_id, {})["resumed_last_run"] = True
+                rendered.extend(Path(item) for item in previous["files"])
+                continue
+
+            started = time.perf_counter()
+            seed = int(shot.get("seed", random.randint(0, 2**31 - 1)))
+            first_frame_node = None
+            if index > 1 and shot.get("first_frame_from_previous", False):
+                previous_files = state["shots"].get(str(shots[index - 2].get("id", f"shot-{index-1:02d}")), {}).get("files", [])
+                if not previous_files:
+                    raise RuntimeError(f"No previous output found for continuity chaining before {shot_id}")
+                tail = self.out_dir / f"{index - 1:02d}_{shot_id}_previous_last_frame.png"
+                _extract_last_frame(Path(previous_files[0]), tail)
+                first_frame_node = client.upload_image(tail)
+            job = _prepare_workflow(workflow_source, self.config, shot, seed, first_frame_node)
+            workflow_snapshot = self.out_dir / f"{index:02d}_{shot_id}.workflow.json"
+            workflow_snapshot.write_text(json.dumps(job, ensure_ascii=False, indent=2), encoding="utf-8")
+            print(f"[{index}/{len(shots)}] submit {shot_id}")
+            prompt_id = client.submit(job)
+            history = client.wait_for_history(prompt_id)
+            files = []
+            for output_index, item in enumerate(client.output_items(history), 1):
+                suffix = Path(item["filename"]).suffix or ".bin"
+                destination = self.out_dir / f"{index:02d}_{shot_id}_{output_index}{suffix}"
+                client.download(item, destination)
+                files.append(str(destination.resolve()))
+            if not files:
+                raise RuntimeError(f"ComfyUI completed {shot_id} but returned no media outputs")
+            elapsed = time.perf_counter() - started
+            state["shots"][shot_id] = {
+                "prompt_id": prompt_id,
+                "files": files,
+                "seed": seed,
+                "prompt": shot["prompt"],
+                "duration_seconds": shot_duration(shot),
+            }
+            self.state_path.write_text(json.dumps(state, ensure_ascii=False, indent=2), encoding="utf-8")
+            metrics["shots"][shot_id] = {"generation_seconds": round(elapsed, 3), "resumed_last_run": False}
+            rendered.extend(Path(item) for item in files)
+            print(f"[{index}/{len(shots)}] complete {shot_id} in {elapsed:.1f}s")
+
+        metrics["last_run_finished_at_epoch"] = time.time()
+        metrics["last_run_total_seconds"] = round(metrics["last_run_finished_at_epoch"] - run_started, 3)
+        metrics["generation_total_seconds"] = round(
+            sum(float(item.get("generation_seconds", 0)) for item in metrics["shots"].values()), 3
+        )
+        self.metrics_path.write_text(json.dumps(metrics, indent=2), encoding="utf-8")
+        return rendered
+
+    def finalize(self, rendered: list[Path]) -> Path:
+        video_output = self.out_dir / "shots.mp4"
+        _concat(video_output, rendered)
+        return video_output
+
+
+class PostproductionRunner:
     """Synthesize narration and compose the final editorial video from clips."""
-    narration = project.get("narration")
-    if not narration or not narration.get("segments"):
-        raise ValueError("postproduction requires narration.segments in the project manifest")
-    from .narration import generate_timeline
-    narration_dir = output_dir / "narration"
-    narration_dir.mkdir(parents=True, exist_ok=True)
-    print("Generating independent narration...")
-    timeline = generate_timeline(
-        project,
-        narration_dir,
-        provider=narration.get("provider", "edge"),
-        voice=narration.get("voice"),
-        rate=narration.get("rate"),
-        pitch=narration.get("pitch"),
-        force=force_tts,
-    )
-    from .editorial import compose
-    final_output = output_dir / project.get("render", {}).get("final_output", "final-editorial.mp4")
-    print("Composing clips, titles, cards, subtitles, and narration...")
-    compose(project_path, timeline, final_output)
-    return final_output
+
+    def __init__(self, project_path: Path, project: dict, config: dict, out_dir: Path, force_tts: bool = False):
+        self.project_path = project_path
+        self.project = project
+        self.config = config
+        self.out_dir = out_dir
+        self.force_tts = force_tts
+
+    def run(self) -> Path:
+        narration = self.project.get("narration")
+        if not narration or not narration.get("segments"):
+            raise ValueError("postproduction requires narration.segments in the project manifest")
+        from .narration import generate_timeline
+        narration_dir = self.out_dir / "narration"
+        narration_dir.mkdir(parents=True, exist_ok=True)
+        print("Generating independent narration...")
+        timeline = generate_timeline(
+            self.project,
+            narration_dir,
+            provider=narration.get("provider", "edge"),
+            voice=narration.get("voice"),
+            rate=narration.get("rate"),
+            pitch=narration.get("pitch"),
+            force=self.force_tts,
+        )
+        from .editorial import compose
+        final_output = self.out_dir / self.project.get("render", {}).get("final_output", "final-editorial.mp4")
+        print("Composing clips, titles, cards, subtitles, and narration...")
+        compose(self.project_path, timeline, final_output)
+        return final_output
 
 
 def run(project_path: Path, config_path: Path, dry_run: bool = False, resume: bool = False,
@@ -163,7 +272,7 @@ def run(project_path: Path, config_path: Path, dry_run: bool = False, resume: bo
             print(f"Post-only project: {project.get('title', project_path.stem)}")
             print(f"Narration segments: {len(project.get('narration', {}).get('segments', []))}")
             return out_dir
-        final_output = run_postproduction(project_path, project, out_dir, config, force_tts)
+        final_output = PostproductionRunner(project_path, project, config, out_dir, force_tts).run()
         print(f"Done: {final_output}")
         return out_dir
 
@@ -183,88 +292,16 @@ def run(project_path: Path, config_path: Path, dry_run: bool = False, resume: bo
     if not isinstance(workflow_source, dict) or not workflow_source:
         raise ValueError("workflow_api must be a non-empty ComfyUI API-format JSON object")
 
-    server = config.get("server_url", "http://127.0.0.1:8188")
-    client = ComfyClient(server, int(config.get("timeout_seconds", 3600)), float(config.get("poll_seconds", 2)))
-    backend_process = None
-    backend_log = None
+    generation = GenerationRunner(project, config, out_dir, resume)
+    client, backend_process, backend_log = generation.prepare_backend()
     try:
-        try:
-            client.wait_until_ready(seconds=3)
-            print("Local backend is already running")
-        except TimeoutError:
-            print("Starting local backend")
-            backend_process, backend_log = _start_backend(config, out_dir)
-            if backend_process is None:
-                raise RuntimeError("Backend is not ready and no start command is configured")
-            client.wait_until_ready(seconds=int(config.get("startup_timeout_seconds", 240)))
-
-        state_path = out_dir / "state.json"
-        state = json.loads(state_path.read_text(encoding="utf-8")) if state_path.exists() else {"shots": {}}
-        metrics_path = out_dir / "metrics.json"
-        metrics = json.loads(metrics_path.read_text(encoding="utf-8")) if metrics_path.exists() else {"shots": {}}
-        run_started = time.time()
-        metrics["last_run_started_at_epoch"] = run_started
-
-        rendered = []
-        for index, shot in enumerate(shots, 1):
-            shot_id = str(shot.get("id", f"shot-{index:02d}"))
-            previous = state["shots"].get(shot_id, {})
-            if resume and previous.get("files") and all(Path(item).exists() for item in previous["files"]):
-                print(f"[{index}/{len(shots)}] resume {shot_id}")
-                metrics["shots"].setdefault(shot_id, {})["resumed_last_run"] = True
-                rendered.extend(Path(item) for item in previous["files"])
-                continue
-
-            started = time.perf_counter()
-            seed = int(shot.get("seed", random.randint(0, 2**31 - 1)))
-            first_frame_node = None
-            if index > 1 and shot.get("first_frame_from_previous", False):
-                previous_files = state["shots"].get(str(shots[index - 2].get("id", f"shot-{index-1:02d}")), {}).get("files", [])
-                if not previous_files:
-                    raise RuntimeError(f"No previous output found for continuity chaining before {shot_id}")
-                tail = out_dir / f"{index - 1:02d}_{shot_id}_previous_last_frame.png"
-                _extract_last_frame(Path(previous_files[0]), tail)
-                first_frame_node = client.upload_image(tail)
-            job = _prepare_workflow(workflow_source, config, shot, seed, first_frame_node)
-            workflow_snapshot = out_dir / f"{index:02d}_{shot_id}.workflow.json"
-            workflow_snapshot.write_text(json.dumps(job, ensure_ascii=False, indent=2), encoding="utf-8")
-            print(f"[{index}/{len(shots)}] submit {shot_id}")
-            prompt_id = client.submit(job)
-            history = client.wait_for_history(prompt_id)
-            files = []
-            for output_index, item in enumerate(client.output_items(history), 1):
-                suffix = Path(item["filename"]).suffix or ".bin"
-                destination = out_dir / f"{index:02d}_{shot_id}_{output_index}{suffix}"
-                client.download(item, destination)
-                files.append(str(destination.resolve()))
-            if not files:
-                raise RuntimeError(f"ComfyUI completed {shot_id} but returned no media outputs")
-            elapsed = time.perf_counter() - started
-            state["shots"][shot_id] = {
-                "prompt_id": prompt_id,
-                "files": files,
-                "seed": seed,
-                "prompt": shot["prompt"],
-                "duration_seconds": shot_duration(shot),
-            }
-            state_path.write_text(json.dumps(state, ensure_ascii=False, indent=2), encoding="utf-8")
-            metrics["shots"][shot_id] = {
-                "generation_seconds": round(elapsed, 3),
-                "resumed_last_run": False,
-            }
-            rendered.extend(Path(item) for item in files)
-            print(f"[{index}/{len(shots)}] complete {shot_id} in {elapsed:.1f}s")
-
-        metrics["last_run_finished_at_epoch"] = time.time()
-        metrics["last_run_total_seconds"] = round(metrics["last_run_finished_at_epoch"] - run_started, 3)
-        metrics["generation_total_seconds"] = round(
-            sum(float(item.get("generation_seconds", 0)) for item in metrics["shots"].values()), 3
-        )
-        metrics_path.write_text(json.dumps(metrics, indent=2), encoding="utf-8")
-
-        video_output = out_dir / "shots.mp4"
-        _concat(video_output, rendered)
+        rendered = generation.generate(client, workflow_source)
+        video_output = generation.finalize(rendered)
         print(f"Done: {video_output}")
+        post = config.get("postproduction", {})
+        if post.get("enabled"):
+            final_output = PostproductionRunner(project_path, project, config, out_dir, force_tts).run()
+            print(f"Final video: {final_output}")
         return out_dir
     finally:
         if backend_process is not None and (config.get("stop_backend_on_exit") or config.get("stop_comfy_on_exit")):
