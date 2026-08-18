@@ -4,18 +4,24 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "local-ai-video-harness"
-version = "0.1.0"
+version = "0.2.0"
 description = "A manifest-driven harness for reproducible local AI video experiments"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
   "av>=14",
-  "imageio-ffmpeg>=0.6",
   "Pillow>=10"
+]
+
+[project.optional-dependencies]
+narration = [
+  "edge-tts>=6"
 ]
 
 [project.scripts]
 local-ai-video = "local_ai_video_harness.cli:main"
+local-ai-video-narration = "local_ai_video_harness.narration:main"
+local-ai-video-continuity = "local_ai_video_harness.continuity:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

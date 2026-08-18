@@ -1,2 +1,0 @@
-[console_scripts]
-local-ai-video = local_ai_video_harness.cli:main

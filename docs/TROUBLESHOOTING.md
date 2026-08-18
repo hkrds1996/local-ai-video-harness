@@ -34,4 +34,12 @@ Do not ask the video model to render exact titles, citations, or subtitles. Gene
 
 ## Output continuity is weak
 
-Cross-shot continuity is not implemented. A future model-specific adapter can extract the last accepted frame, upload it as a conditioning image, inject the returned filename into the next workflow, and record a transition quality metric.
+Continuity chaining is supported when the workflow exposes a `first_frame` input. Each shot that declares `first_frame_from_previous` receives the last frame of the previous accepted output as a conditioning image; prompts should also repeat shared subject, scene, and style anchors. Run `local-ai-video check --manifest <project>` for a static report on anchors, durations, and chaining flags. Note that chaining cannot fix prompt drift when the model itself is inconsistent.
+
+## Narration fails over the network
+
+The `edge` provider requires outbound access to Microsoft's speech service. If the machine is offline, switch the manifest to `"provider": "sapi"` with a locally installed Windows voice, or regenerate with `--post-only --force-tts` after changing the provider.
+
+## The final video has no audio
+
+Postproduction discards model-generated audio by design; the final track comes from the narration synthesis step. Confirm that `narration.segments` is present and that the TTS step printed one entry per segment. `_narration.m4a` in the output directory is the assembled track.

@@ -1,5 +1,6 @@
 __pycache__/
 *.py[cod]
+*.egg-info/
 .venv/
 .env
 outputs/
@@ -8,9 +9,12 @@ generated/
 *.mov
 *.wav
 *.mp3
+*.m4a
 *.srt
 *.png
 *.jpg
 *.workflow.json
+timeline.json
+continuity_report.json
 cost-ledger.local.json
 config.local.json

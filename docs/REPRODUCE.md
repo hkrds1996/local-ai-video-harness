@@ -62,17 +62,30 @@ Either start ComfyUI before the run, or configure `start_command`, `start_cwd`, 
 
 ## 7. Execute the demo
 
+Generate the shots first:
+
 ```powershell
 python -m local_ai_video_harness.cli run `
   --manifest examples/english-rto-demo/project.json `
   --config config.local.json
 ```
 
-For every shot, the runner prepares the workflow, submits the job, waits for history, downloads returned media, updates `state.json`, and records generation timing. If postproduction is enabled, it also generates local narration, deterministic captions, and the final MP4.
+For every shot, the runner prepares the workflow, submits the job, waits for history, downloads returned media, updates `state.json`, records generation timing, and concatenates the clips. When a shot declares `first_frame_from_previous`, its preceding shot's last frame is uploaded and injected as the conditioning image.
+
+Then compose the final editorial video from those clips:
+
+```powershell
+python -m local_ai_video_harness.cli run `
+  --manifest examples/english-rto-demo/project.json `
+  --config config.local.json `
+  --post-only
+```
+
+This step needs no GPU: it synthesizes per-segment narration (Edge neural voices by default, offline SAPI when configured), writes SRT subtitles and a `timeline.json`, renders the deterministic overlay (title bar, source badge, timed cards, subtitles), and muxes the final MP4.
 
 ## 8. Resume an interrupted run
 
-Run the same command again. A shot is skipped when its state entry lists output files and every file still exists. If an output is missing, the shot is submitted again.
+Run the generation command again with `--resume`. A shot is skipped when its state entry lists output files and every file still exists. If an output is missing, the shot is submitted again.
 
 The current state mechanism is intentionally conservative. It does not yet hash prompts, workflows, or model versions. If inputs change, use a new output directory or remove only the affected state entry after reviewing it.
 
@@ -85,8 +98,8 @@ Copy `docs/EXPERIMENT_LOG_TEMPLATE.md`, record the run, and publish only sanitiz
 - Arbitrary browser-canvas workflows are not supported; the current converter is specific to the tested MiniMax H3 graph.
 - Automatic startup requires a valid local command, and graceful shutdown depends on the configured launcher behavior.
 - Generic API workflows do not receive model-specific duration or resolution injection.
-- It does not yet chain the final frame of one shot into the next.
-- Windows SAPI is the only built-in narration provider.
+- Continuity chaining requires the canvas workflow to expose a `first_frame` input wired through `LoadImage`; it is an adapter feature, not a generic capability.
+- The `edge` narration provider requires network access; the offline `sapi` provider is lower quality.
 - It provides resume behavior but not automatic retry backoff.
 
 These limitations are documented so the repository does not claim capabilities it has not implemented.

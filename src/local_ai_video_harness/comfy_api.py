@@ -66,6 +66,29 @@ class ComfyClient:
         with urlopen(self.base_url + "/view?" + query, timeout=120) as response:
             destination.write_bytes(response.read())
 
+    def upload_image(self, path: Path) -> str:
+        """Upload an image and return the server-side filename.
+
+        Used for first-frame continuity chaining, where the last frame of a
+        completed shot becomes the ``first_frame`` input of the next shot.
+        """
+        boundary = "----VideoHarness" + uuid.uuid4().hex
+        body = [
+            f"--{boundary}\r\nContent-Disposition: form-data; name=\"image\"; "
+            f"filename=\"{path.name}\"\r\nContent-Type: image/png\r\n\r\n".encode(),
+            path.read_bytes(),
+            f"\r\n--{boundary}--\r\n".encode(),
+        ]
+        request = Request(
+            self.base_url + "/upload/image",
+            data=b"".join(body),
+            method="POST",
+            headers={"Content-Type": f"multipart/form-data; boundary={boundary}"},
+        )
+        with urlopen(request, timeout=120) as response:
+            result = json.loads(response.read().decode("utf-8"))
+        return result.get("name", path.name)
+
 
 def clone_workflow(workflow: dict) -> dict:
     return copy.deepcopy(workflow)

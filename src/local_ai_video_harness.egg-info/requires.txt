@@ -1,3 +1,0 @@
-av>=14
-imageio-ffmpeg>=0.6
-Pillow>=10

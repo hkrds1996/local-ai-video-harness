@@ -1,24 +1,18 @@
 {
   "server_url": "http://127.0.0.1:8188",
-  "workflow_api": "C:/path/to/public/api-format-workflow.json",
-  "output_dir": "outputs",
+  "workflow_api": "C:/path/to/ComfyUI_api_or_canvas_workflow.json",
+  "output_dir": "generated",
+  "workflow_format": "auto",
   "prompt_node": "12",
   "prompt_input": "text",
   "seed_node": "15",
   "seed_input": "seed",
+  "default_duration": 5,
   "timeout_seconds": 3600,
   "poll_seconds": 2,
   "startup_timeout_seconds": 240,
-  "start_command": ["C:/path/to/start_comfyui.bat"],
-  "start_cwd": "C:/path/to/ComfyUI_windows_portable",
-  "stop_backend_on_exit": false,
-  "workflow_format": "api",
-  "postproduction": {
-    "enabled": false,
-    "provider": "sapi",
-    "voice": "Microsoft Zira Desktop",
-    "rate": 1,
-    "font": "C:/Windows/Fonts/arial.ttf",
-    "final_output": "english-demo-final.mp4"
-  }
+  "comfy_root": "C:/path/to/ComfyUI_windows_portable",
+  "start_script": "start_h3_low_vram.bat",
+  "stop_comfy_on_exit": false,
+  "ffmpeg": "ffmpeg"
 }
