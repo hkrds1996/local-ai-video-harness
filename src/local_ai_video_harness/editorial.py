@@ -19,10 +19,12 @@ from __future__ import annotations
 
 import json
 import re
+import shutil
 from fractions import Fraction
 from pathlib import Path
 
 import av
+import numpy as np
 from PIL import Image, ImageDraw, ImageFilter, ImageFont
 
 REFERENCE = (768, 1344)
@@ -70,7 +72,7 @@ def editorial_cues(text: str, duration: float):
     Proportional timing is less granular than TTS word boundaries but reads
     naturally and works for every provider.
     """
-    parts = [part.strip() for part in re.split(r"(?<=[，。！？；：])", text) if part.strip()]
+    parts = [part.strip() for part in re.split(r"(?<=[，。！？；：.!?])", text) if part.strip()]
     expanded = []
     for part in parts:
         if len(part) <= 31:
@@ -189,8 +191,81 @@ def layout_warnings(section: dict, width: int, height: int, fonts) -> list[str]:
     return warnings
 
 
-def build_audio(audio_files, destination: Path):
-    """Concatenate per-segment audio into one AAC track; return segment durations."""
+def _resample_to_ndarray(path: Path):
+    """Decode a file's audio stream to a stereo float32 ndarray (channels, samples)."""
+    container = av.open(str(path))
+    stream = next(item for item in container.streams if item.type == "audio")
+    resampler = av.AudioResampler(format="fltp", layout="stereo", rate=48000)
+    chunks = []
+    for frame in container.decode(stream):
+        for converted in resampler.resample(frame):
+            chunks.append(converted.to_ndarray())
+    for converted in resampler.resample(None):
+        chunks.append(converted.to_ndarray())
+    container.close()
+    if not chunks:
+        return None
+    return np.concatenate(chunks, axis=1)
+
+
+def _write_pcm(output, stream_out, data: np.ndarray, cursor: int) -> int:
+    """Encode a stereo ndarray as AAC frames and return the new sample cursor."""
+    for start in range(0, data.shape[1], 1024):
+        block = np.ascontiguousarray(data[:, start:start + 1024])
+        frame = av.AudioFrame.from_ndarray(block, format="fltp", layout="stereo")
+        frame.sample_rate = 48000
+        frame.pts = cursor
+        frame.time_base = Fraction(1, 48000)
+        for packet in stream_out.encode(frame):
+            output.mux(packet)
+        cursor += block.shape[1]
+    return cursor
+
+
+def _mix_music_bed(tts_path: Path, clip_path: Path, volume: float, destination: Path):
+    """Mix a TTS track with the clip's own audio looped underneath as a music bed.
+
+    The video model's speech output is unreliable (garbled dialogue), but its
+    ambient audio is usable as a soundtrack. Speech always comes from the TTS
+    track; the clip audio is looped, faded, scaled by ``volume``, and summed
+    underneath. Falls back to the plain TTS track when the clip has no audio.
+    """
+    tts = _resample_to_ndarray(tts_path)
+    if tts is None:
+        shutil.copyfile(tts_path, destination)
+        return
+    music = _resample_to_ndarray(clip_path)
+    if music is None or music.shape[1] < 4800:
+        shutil.copyfile(tts_path, destination)
+        return
+    target = tts.shape[1]
+    music_len = music.shape[1]
+    repeats = int(np.ceil(target / music_len))
+    music = np.tile(music, (1, repeats))[:, :target]
+    fade = min(int(48000 * 0.8), music.shape[1] // 2)
+    if fade > 0:
+        ramp = np.linspace(0.0, 1.0, fade, dtype=np.float32)
+        music[:, :fade] *= ramp
+        music[:, -fade:] *= ramp[::-1]
+    mixed = np.clip(tts + music * float(volume), -1.0, 1.0)
+    output = av.open(str(destination), "w")
+    stream_out = output.add_stream("aac", rate=48000)
+    stream_out.layout = "stereo"
+    stream_out.bit_rate = 192000
+    _write_pcm(output, stream_out, mixed, 0)
+    for packet in stream_out.encode():
+        output.mux(packet)
+    output.close()
+
+
+def build_audio(entries, destination: Path, music_volume: float = 0.0):
+    """Assemble the final audio track; return per-segment durations.
+
+    ``entries`` is a list of ``(audio_path, clip_path, volume)`` tuples. When
+    ``music_volume`` is nonzero and the entry has a clip with audio, the clip
+    audio is mixed under the TTS track as a music bed (see
+    :func:`_mix_music_bed`).
+    """
     destination.parent.mkdir(parents=True, exist_ok=True)
     output = av.open(str(destination), "w")
     stream_out = output.add_stream("aac", rate=48000)
@@ -199,8 +274,14 @@ def build_audio(audio_files, destination: Path):
     resampler = av.AudioResampler(format="fltp", layout="stereo", rate=48000)
     cursor = 0
     durations = []
-    for source in audio_files:
+    for index, (audio_path, clip_path, volume) in enumerate(entries):
         start = cursor
+        if music_volume and volume and clip_path is not None:
+            mixed = audio_path.parent / f"_mixed_{index:02d}.m4a"
+            _mix_music_bed(Path(audio_path), clip_path, volume, mixed)
+            source = mixed
+        else:
+            source = audio_path
         container = av.open(str(source))
         stream = next(item for item in container.streams if item.type == "audio")
         for frame in container.decode(stream):
@@ -316,7 +397,15 @@ def compose(manifest_path: Path, timeline_path: Path, destination: Path):
     output_dir.mkdir(parents=True, exist_ok=True)
     audio_temp = output_dir / "_narration.m4a"
     video_temp = output_dir / "_video_with_titles.mp4"
-    durations = build_audio([Path(item["audio"]) for item in timeline_segments], audio_temp)
+    narration = manifest.get("narration", {})
+    music_volume = float(narration.get("music_volume", 0.0) or 0.0)
+    entries = []
+    for segment, generated in zip(narration_segments, timeline_segments):
+        clip = Path(segment["clip"])
+        clip_path = (base / clip).resolve() if not clip.is_absolute() else clip
+        volume = float(segment.get("music_volume", music_volume))
+        entries.append((Path(generated["audio"]), clip_path if clip_path.exists() else None, volume))
+    durations = build_audio(entries, audio_temp, music_volume)
     render = manifest.get("render", {})
     render_video(
         sections,

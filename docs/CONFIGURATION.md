@@ -47,6 +47,7 @@ Each shot requires `id` and `prompt`. Optional keys:
 | `voice` | `zh-CN-YunxiNeural` (edge) / `Microsoft Huihui Desktop` (sapi) | Voice name |
 | `rate` | `-4%` (edge) / `0` (sapi) | Speaking rate |
 | `pitch` | `+0Hz` | Pitch adjustment (edge only) |
+| `music_volume` | `0` | Mix each clip's own audio under the TTS track as a looped, faded music bed (e.g. `0.15`). The video model's speech output is garbled, so speech always comes from the TTS provider; only ambient audio is reused |
 | `segments` | — | Ordered narration segments |
 
 Each segment requires `id` and `text`, and references existing media through `clip` (a path relative to the manifest, or absolute). Optional keys:
@@ -55,6 +56,8 @@ Each segment requires `id` and `text`, and references existing media through `cl
 |---|---|
 | `title` | Chapter title shown in the top overlay bar |
 | `source` | Short attribution shown in the source badge |
+| `voice` / `rate` / `pitch` | Per-segment overrides — used for dialogue (one character voice per segment) and emotional pacing |
+| `music_volume` | Per-segment override of `narration.music_volume`; `0` silences the bed for that segment |
 | `cards` | Timed data-card overlays: `start`, `end`, `headline`, `lines` |
 
 Cards appear while `start <= local_time < end` within the segment.

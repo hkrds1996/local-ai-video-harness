@@ -1,0 +1,263 @@
+{
+  "slug": "anime-dialogue-demo",
+  "title": "Sakura Speed: A Dialogue-Driven Anime Demo",
+  "description": "An 8-minute anime short told through dialogue instead of narration. Two character voices, speaker-labelled subtitles, scene cards, and first-frame chaining across nine generated clips. The story is original dialogue inspired by the background of the film Five Centimeters per Second.",
+  "style_anchor": "soft pastel anime background art, cinematic lighting, no readable text, no logos, no signs",
+  "render": {
+    "width": 1920,
+    "height": 1080,
+    "fps": 24,
+    "font": "C:/Windows/Fonts/msyh.ttc",
+    "output_dir": "generated",
+    "final_output": "anime-dialogue-demo.mp4"
+  },
+  "generation": {
+    "backend": "local-comfyui-api",
+    "max_shot_seconds": 15,
+    "audio_from_video_model": false,
+    "prompt_policy": "No readable text, logos, signs, UI labels, or generated subtitles in model output. Text is rendered programmatically after generation."
+  },
+  "shots": [
+    {
+      "id": "cherry-blossoms",
+      "duration": 6,
+      "prompt": "Anime background art, close view of cherry blossom petals falling past a bright spring sky, soft pastel colors, cinematic bloom, soft pastel anime background art, cinematic lighting, no readable text, no logos, no signs"
+    },
+    {
+      "id": "moving-train",
+      "duration": 6,
+      "first_frame_from_previous": true,
+      "prompt": "Anime background art, a train crossing green countryside at golden hour, a distant child figure on the platform waving, soft pastel colors, cinematic lighting, no readable text, no logos, no signs"
+    },
+    {
+      "id": "letters-rain",
+      "duration": 6,
+      "first_frame_from_previous": true,
+      "prompt": "Anime background art, rain streaking down a window beside an open letter on a wooden desk, warm lamp light, melancholic mood, soft pastel colors, cinematic lighting, no readable text, no logos, no signs"
+    },
+    {
+      "id": "night-train",
+      "duration": 6,
+      "first_frame_from_previous": true,
+      "prompt": "Anime background art, night train interior with snow blurring past the windows, dim warm lights, a lone passenger silhouette, soft pastel colors, cinematic lighting, no readable text, no logos, no signs"
+    },
+    {
+      "id": "snowfield-station",
+      "duration": 6,
+      "first_frame_from_previous": true,
+      "prompt": "Anime background art, a small snow-covered station at dusk, two distant child silhouettes under a bare cherry tree, falling snow, soft pastel colors, cinematic lighting, no readable text, no logos, no signs"
+    },
+    {
+      "id": "rocket-summer",
+      "duration": 6,
+      "first_frame_from_previous": true,
+      "prompt": "Anime background art, a rocket launching over a blue summer sea, white clouds, a small island town below, bright daylight, soft pastel colors, cinematic lighting, no readable text, no logos, no signs"
+    },
+    {
+      "id": "city-night",
+      "duration": 6,
+      "first_frame_from_previous": true,
+      "prompt": "Anime background art, an office district at night, glowing windows, a solitary figure on a crosswalk, rain reflections on the asphalt, soft pastel colors, cinematic lighting, no readable text, no logos, no signs"
+    },
+    {
+      "id": "railroad-crossing",
+      "duration": 6,
+      "first_frame_from_previous": true,
+      "prompt": "Anime background art, a railroad crossing barrier at sunset, cherry petals in the wind, long shadows, bittersweet mood, soft pastel colors, cinematic lighting, no readable text, no logos, no signs"
+    },
+    {
+      "id": "sky-clouds",
+      "duration": 6,
+      "first_frame_from_previous": true,
+      "prompt": "Anime background art, a vast blue sky with slow clouds above a cherry blossom branch, soft light rays, serene ending mood, soft pastel colors, cinematic lighting, no readable text, no logos, no signs"
+    }
+  ],
+  "narration": {
+    "provider": "edge",
+    "voice": "en-US-ChristopherNeural",
+    "rate": "-4%",
+    "pitch": "+0Hz",
+    "segments": [
+      {
+        "id": "cherry-blossoms",
+        "title": "Cherry Blossoms Fall at Five Centimeters",
+        "source": "Inspired by 5cm per Second · original dialogue",
+        "voice": "en-US-JennyNeural",
+        "clip": "generated/01_cherry-blossoms_1.mp4",
+        "text": "Haru: Do you know how fast cherry blossoms fall? Riku: Falling petals? I never thought about it. Haru: Five centimeters per second. I read it in a book. Riku: That's slow. Haru: It sounds slow. But the petals never stop moving, and neither do we. Riku: We're still kids, Haru. We have all the time in the world. Haru: Maybe. But the world has a way of moving us apart. Riku: Then we'll move back together. Haru: Under the cherry trees? Riku: Under the cherry trees. In spring, every year, we'll meet. Haru: Then we should make it a promise. Riku: A promise. Haru: A real one, this time.",
+        "cards": [
+          {
+            "start": 4,
+            "end": 16,
+            "headline": "Tokyo · spring",
+            "lines": [
+              "The year we were twelve",
+              "Cherry blossom season"
+            ]
+          }
+        ],
+        "rate": "0%",
+        "pitch": "+2Hz"
+      },
+      {
+        "id": "moving-train",
+        "title": "The Move",
+        "source": "Inspired by 5cm per Second · original dialogue",
+        "voice": "en-US-ChristopherNeural",
+        "clip": "generated/02_moving-train_1.mp4",
+        "text": "Riku: The day Haru moved away, the city felt twice as empty. Her house stood quiet behind the moving trucks. Haru: Don't look so sad. We'll still write. Riku: Letters take days. Haru: Then we'll fill them with days. Riku: What if I forget what you look like? Haru: You won't. I'll send a picture every month. Riku: Your camera is always out of film. Haru: Then you'll have to remember harder. Riku: Seven hundred kilometers feels like another country. Haru: On a map, Tokyo and Tochigi are almost touching. Riku: Maps lie. Haru: Then we'll make them tell the truth. Riku: How? Haru: We'll count the distance down, one letter at a time. Riku: That sounds like forever. Haru: Forever is fine. I'll wait.",
+        "cards": [
+          {
+            "start": 4,
+            "end": 16,
+            "headline": "Moving day",
+            "lines": [
+              "Tokyo → Tochigi",
+              "Seven hundred kilometers"
+            ]
+          }
+        ],
+        "rate": "-6%",
+        "pitch": "-2Hz"
+      },
+      {
+        "id": "letters-rain",
+        "title": "Letters Across the Country",
+        "source": "Inspired by 5cm per Second · original dialogue",
+        "voice": "en-US-JennyNeural",
+        "clip": "generated/03_letters-rain_1.mp4",
+        "text": "Haru: The first letter took four days. The second took three. By summer, they arrived like clockwork. Riku: School is boring. I sleep through science. Haru: I sleep through everything. The teacher says I dream with my eyes open. Riku: What do you dream about? Haru: Cherry trees, mostly. And a train station I've never been to. Riku: That station is real. I pass it every morning. Haru: Then I've been there too. Riku: When I see it, I'll think of you. Haru: When I close my eyes, I see it too. Riku: Do you think distance gets smaller the more you write? Haru: I think it gets lighter. Riku: Lighter. Haru: Like a suitcase you carry until it becomes a backpack. And then a letter. And then nothing at all.",
+        "cards": [
+          {
+            "start": 4,
+            "end": 16,
+            "headline": "Summer, letters",
+            "lines": [
+              "Four days, then three, then two",
+              "One letter at a time"
+            ]
+          }
+        ],
+        "rate": "-4%",
+        "pitch": "0Hz"
+      },
+      {
+        "id": "night-train",
+        "title": "The Night Train",
+        "source": "Inspired by 5cm per Second · original dialogue",
+        "voice": "en-US-ChristopherNeural",
+        "clip": "generated/04_night-train_1.mp4",
+        "text": "Riku: In December, I bought a ticket to see her. The snow began before dusk. Haru: Are you still coming? The trains are stopping. Riku: I'm on the platform. I'll get there. Haru: The radio says the lines are frozen. Riku: Then I'll walk the rails. Haru: Don't be reckless. Riku: I've been counting this distance for months. One more night won't stop me. Haru: The snow is beautiful here. It covers everything. Riku: Then I'll arrive covered in it. Haru: The station light will be on. I'll be under it. Riku: Wait for me. Haru: I'll wait. Riku: The train keeps stopping. Every hour, another delay. But the light ahead gets closer. I can feel it. Haru: I can feel you too. The snow is falling slower now, like it's waiting as well.",
+        "cards": [
+          {
+            "start": 4,
+            "end": 16,
+            "headline": "December · night train",
+            "lines": [
+              "The snow is falling",
+              "Every hour, another delay"
+            ]
+          }
+        ],
+        "rate": "-6%",
+        "pitch": "-2Hz"
+      },
+      {
+        "id": "snowfield-station",
+        "title": "The Snowfield",
+        "source": "Inspired by 5cm per Second · original dialogue",
+        "voice": "en-US-JennyNeural",
+        "clip": "generated/05_snowfield-station_1.mp4",
+        "text": "Haru: He arrived hours late, covered in snow, smelling of train smoke. Riku: I'm sorry. The tracks kept freezing. Haru: You're here. That's all that matters. Riku: The station was silent. The whole town was silent. Haru: We walked to the cherry tree in the field. Riku: Its branches were bare. Haru: In spring, it will be covered in white again. Riku: Like this snow. Haru: Like this snow. Riku: I kept your letters under my pillow. Haru: I kept yours in my school bag. Riku: We stood under the bare tree until the sky turned pale. Haru: We didn't say goodbye. Riku: We said: next spring, this tree. Haru: Next spring. Riku: And then the morning train took me home, and the distance grew again, centimeter by centimeter.",
+        "cards": [
+          {
+            "start": 4,
+            "end": 16,
+            "headline": "The snowfield",
+            "lines": [
+              "The bare cherry tree",
+              "Next spring, this tree"
+            ]
+          }
+        ],
+        "rate": "-10%",
+        "pitch": "-3Hz"
+      },
+      {
+        "id": "rocket-summer",
+        "title": "The Rocket Summer",
+        "source": "Inspired by 5cm per Second · original dialogue",
+        "voice": "en-US-ChristopherNeural",
+        "clip": "generated/06_rocket-summer_1.mp4",
+        "text": "Riku: Years passed. I moved to a southern island where rockets launched into the sea sky. Haru: The letters grew shorter. Riku: School, then work. Work, then school. Haru: I still read yours twice. Riku: On launch days, the whole island stopped to watch. Haru: Is it beautiful? Riku: The rocket climbs so fast it seems to escape gravity. Haru: Maybe we should have climbed that fast. Riku: Instead we drifted, centimeter by centimeter. Haru: Five centimeters per second. Riku: That's what you told me about the petals. Haru: And about us, I think. Riku: On the beach, I found your last letter, crumpled from reading. Haru: It said: I think the cherry trees bloomed early this year. I looked for you under them. Riku: I held the letter until the sunset burned it red.",
+        "cards": [
+          {
+            "start": 4,
+            "end": 16,
+            "headline": "A southern island",
+            "lines": [
+              "Rocket summer",
+              "The letters grew shorter"
+            ]
+          }
+        ],
+        "rate": "0%",
+        "pitch": "+1Hz"
+      },
+      {
+        "id": "city-night",
+        "title": "The City of Adults",
+        "source": "Inspired by 5cm per Second · original dialogue",
+        "voice": "en-US-JennyNeural",
+        "clip": "generated/07_city-night_1.mp4",
+        "text": "Haru: Tokyo swallowed us whole. Riku: I got a job in an office that looked like every other office. Haru: I did too. Riku: We talked once, years later, on the phone. Haru: The conversation was polite, like strangers at a bus stop. Riku: How is the cherry tree? Haru: It's still there. Riku: And the station? Haru: The station is still there. Riku: I wanted to say: I'm sorry I stopped counting. Haru: I wanted to say: I kept waiting under the tree, just in case. Riku: Instead we said good night. Haru: Good night. Riku: And the distance kept growing, quietly, at five centimeters per second.",
+        "cards": [
+          {
+            "start": 4,
+            "end": 16,
+            "headline": "Tokyo, years later",
+            "lines": [
+              "The polite phone call",
+              "Five centimeters per second"
+            ]
+          }
+        ],
+        "rate": "-8%",
+        "pitch": "-3Hz"
+      },
+      {
+        "id": "railroad-crossing",
+        "title": "The Railroad Crossing",
+        "source": "Inspired by 5cm per Second · original dialogue",
+        "voice": "en-US-ChristopherNeural",
+        "clip": "generated/08_railroad-crossing_1.mp4",
+        "text": "Riku: One spring evening, I passed a railroad crossing I knew from somewhere. Haru: The barrier was down. A train was coming. Riku: On the other side, I saw a woman with a familiar way of standing. Haru: She was holding a paper bag and looking at the sky. Riku: I thought: if the train passes and she's still there, I'll cross. Haru: The train roared past, bright windows, one after another. Riku: When it was gone, the other side was empty. Haru: I waited a long time at that crossing. Riku: And then I understood. Haru: We had crossed paths at the exact speed of falling petals. Riku: I turned and walked away, and the wind carried a few petals past me. Haru: They were falling at five centimeters per second.",
+        "cards": [
+          {
+            "start": 4,
+            "end": 16,
+            "headline": "Spring evening",
+            "lines": [
+              "The barrier was down",
+              "A train was coming"
+            ]
+          }
+        ],
+        "rate": "-6%",
+        "pitch": "-2Hz"
+      },
+      {
+        "id": "sky-clouds",
+        "title": "Five Centimeters, Still",
+        "source": "Inspired by 5cm per Second · original dialogue",
+        "voice": "en-US-JennyNeural",
+        "clip": "generated/09_sky-clouds_1.mp4",
+        "text": "Haru: People ask why the story still hurts. Riku: Because it isn't about trains, or snow, or even cherry blossoms. Haru: It's about the distance that grows when no one is counting. Riku: Five centimeters per second is slow. Haru: But it never stops. Riku: We measure our lives in the things we let drift. Haru: And in the one thing we refuse to let go. Riku: A promise under a cherry tree. Haru: A station light in the snow. Riku: A crossing where, for one second, we almost met again. Haru: And the courage to turn around. Riku: To turn around. Haru: That is the whole story. Riku: And the whole story is still happening. Haru: Every spring, somewhere, petals fall at five centimeters per second. Riku: And somewhere, someone is still waiting under the tree.",
+        "cards": [],
+        "rate": "-10%",
+        "pitch": "-3Hz"
+      }
+    ],
+    "music_volume": 0.15
+  }
+}

@@ -108,16 +108,23 @@ def generate_timeline(project: dict, output_dir: Path, provider: str = "edge", v
         suffix = ".mp3" if provider == "edge" else ".wav"
         media = output_dir / f"{stem}{suffix}"
         subtitles = output_dir / f"{stem}.srt"
+        # Dialogue-style projects can assign one voice per segment, e.g. a
+        # different character voice for every speaker, plus per-segment rate
+        # and pitch for emotional contrast between scenes.
+        segment_voice = segment.get("voice") or voice
+        segment_rate = segment.get("rate") or rate
+        segment_pitch = segment.get("pitch") or pitch
         if force or not media.exists() or not subtitles.exists():
             print(f"[{index}/{len(segments)}] TTS {segment.get('title', stem)}")
             if provider == "edge":
-                asyncio.run(_edge_segment(segment["text"], media, subtitles, voice, rate, pitch))
+                asyncio.run(_edge_segment(segment["text"], media, subtitles, segment_voice, segment_rate, segment_pitch))
             else:
-                _sapi_segment(segment["text"], media, subtitles, voice, int(rate))
+                _sapi_segment(segment["text"], media, subtitles, segment_voice, int(segment_rate))
         timeline.append({
             "id": segment.get("id", stem),
             "audio": str(media.resolve()),
             "subtitles": str(subtitles.resolve()),
+            "voice": segment_voice,
         })
 
     timeline_path = output_dir / "timeline.json"
