@@ -128,15 +128,20 @@ def overlay_editorial(image: Image.Image, section: dict, local_time: float, cues
     for card in section.get("cards", []):
         if float(card.get("start", 0)) <= local_time < float(card.get("end", 0)):
             top = 260 * sy
+            headline = wrap_cjk(card.get("headline", ""), round(17 * line_scale))
+            head_box = draw.multiline_textbbox((82 * sx, top + 42 * sy), headline, font=title_font, spacing=8)
+            body_y = max(top + 160 * sy, head_box[3] + 14)
+            lines = "\n".join("• " + wrap_cjk(line, round(21 * line_scale)) for line in card.get("lines", []))
+            body_box = draw.multiline_textbbox((82 * sx, body_y), lines, font=body_font, spacing=13)
+            # The box grows with its content instead of clipping dense cards.
+            bottom = max(top + 330 * sy, body_box[3] + 22)
             draw.rounded_rectangle(
-                (48 * sx, top, width - 48 * sx, top + 330 * sy), 24,
+                (48 * sx, top, width - 48 * sx, bottom), 24,
                 fill=(7, 18, 32, 224), outline=(75, 176, 222, 235), width=3,
             )
-            headline = wrap_cjk(card.get("headline", ""), round(17 * line_scale))
             draw.multiline_text((82 * sx, top + 42 * sy), headline, font=title_font,
                                 fill=(255, 204, 94, 255), spacing=8)
-            lines = "\n".join("• " + wrap_cjk(line, round(21 * line_scale)) for line in card.get("lines", []))
-            draw.multiline_text((82 * sx, top + 160 * sy), lines, font=body_font,
+            draw.multiline_text((82 * sx, body_y), lines, font=body_font,
                                 fill=(238, 244, 250, 255), spacing=13)
             break
 
@@ -174,15 +179,13 @@ def layout_warnings(section: dict, width: int, height: int, fonts) -> list[str]:
             warnings.append(f"title collides with the source badge (reaches y={bottom:.0f})")
     for card in section.get("cards", []):
         top = 260 * sy
-        bottom = top + 330 * sy
         headline = wrap_cjk(card.get("headline", ""), round(17 * line_scale))
         head_box = probe.multiline_textbbox((82 * sx, top + 42 * sy), headline, font=title_font, spacing=8)
+        body_y = max(top + 160 * sy, head_box[3] + 14)
         body = "\n".join("• " + wrap_cjk(line, round(21 * line_scale)) for line in card.get("lines", []))
-        body_box = probe.multiline_textbbox((82 * sx, top + 160 * sy), body, font=body_font, spacing=13)
-        if head_box[3] > top + 160 * sy - 4:
-            warnings.append(f"card {card.get('headline', '')!r}: headline collides with the bullet lines")
-        if body_box[3] > bottom:
-            warnings.append(f"card {card.get('headline', '')!r}: bullet lines exceed the card box")
+        body_box = probe.multiline_textbbox((82 * sx, body_y), body, font=body_font, spacing=13)
+        if body_box[3] > height - 300 * sy:
+            warnings.append(f"card {card.get('headline', '')!r}: bullet lines reach y={body_box[3]:.0f}, past the bottom shade")
     return warnings
 
 
@@ -228,8 +231,12 @@ def render_video(sections, durations, destination: Path, fps: int, width: int, h
     stream_out.pix_fmt = "yuv420p"
     stream_out.options = {"crf": "19", "preset": "medium"}
     font_scale, _ = _layout_scale(width, height)
+    sy = height / REFERENCE[1]
+    # The title must stay clear of the source badge row: its real glyph height
+    # (about 1.3x the font size) cannot exceed the 128sy badge start.
+    title_size = round(min(48 * font_scale, (128 * sy - 38 * sy - 8) / 1.3))
     fonts = (
-        font(font_path, round(48 * font_scale)),
+        font(font_path, title_size),
         font(font_path, round(25 * font_scale)),
         font(font_path, round(31 * font_scale)),
         font(font_path, round(39 * font_scale)),
