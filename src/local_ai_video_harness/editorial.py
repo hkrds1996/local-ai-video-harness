@@ -90,6 +90,22 @@ def editorial_cues(text: str, duration: float):
     return cues
 
 
+def _layout_scale(width: int, height: int):
+    """Return (font_scale, line_scale) for the render target.
+
+    The authored layout targets a 768x1344 vertical reference. On portrait
+    canvases fonts scale with width. On landscape canvases vertical space is
+    scarce, so font growth is capped while line wrap widens to use the extra
+    width; this keeps text from colliding with adjacent elements.
+    """
+    sx = width / REFERENCE[0]
+    sy = height / REFERENCE[1]
+    if sy >= sx:
+        return sx, 1.0
+    font_scale = min(sx, 1.4 * sy)
+    return font_scale, sx / font_scale
+
+
 def overlay_editorial(image: Image.Image, section: dict, local_time: float, cues, fonts):
     image = image.convert("RGBA")
     draw = ImageDraw.Draw(image, "RGBA")
@@ -97,6 +113,7 @@ def overlay_editorial(image: Image.Image, section: dict, local_time: float, cues
     title_font, source_font, body_font, subtitle_font = fonts
     sx = width / REFERENCE[0]
     sy = height / REFERENCE[1]
+    _, line_scale = _layout_scale(width, height)
 
     # A fixed gradient-like shade keeps generated backgrounds from competing with real text.
     draw.rectangle((0, 0, width, round(190 * sy)), fill=(5, 12, 22, 145))
@@ -105,8 +122,8 @@ def overlay_editorial(image: Image.Image, section: dict, local_time: float, cues
     source = section.get("source", "")
     if source:
         badge_w = min(width - 44 * sx, 44 * sx + len(source) * 24 * sx)
-        draw.rounded_rectangle((44 * sx, 112 * sy, badge_w, 161 * sy), 12, fill=(20, 105, 160, 220))
-        draw.text((58 * sx, 121 * sy), source, font=source_font, fill=(245, 250, 255, 255))
+        draw.rounded_rectangle((44 * sx, 128 * sy, badge_w, 177 * sy), 12, fill=(20, 105, 160, 220))
+        draw.text((58 * sx, 137 * sy), source, font=source_font, fill=(245, 250, 255, 255))
 
     for card in section.get("cards", []):
         if float(card.get("start", 0)) <= local_time < float(card.get("end", 0)):
@@ -115,17 +132,17 @@ def overlay_editorial(image: Image.Image, section: dict, local_time: float, cues
                 (48 * sx, top, width - 48 * sx, top + 330 * sy), 24,
                 fill=(7, 18, 32, 224), outline=(75, 176, 222, 235), width=3,
             )
-            headline = wrap_cjk(card.get("headline", ""), 17)
+            headline = wrap_cjk(card.get("headline", ""), round(17 * line_scale))
             draw.multiline_text((82 * sx, top + 42 * sy), headline, font=title_font,
                                 fill=(255, 204, 94, 255), spacing=8)
-            lines = "\n".join("• " + wrap_cjk(line, 21) for line in card.get("lines", []))
+            lines = "\n".join("• " + wrap_cjk(line, round(21 * line_scale)) for line in card.get("lines", []))
             draw.multiline_text((82 * sx, top + 160 * sy), lines, font=body_font,
                                 fill=(238, 244, 250, 255), spacing=13)
             break
 
     cue_text = next((text for start, end, text in cues if start <= local_time < end), "")
     if cue_text:
-        subtitle = wrap_cjk(cue_text, 15)
+        subtitle = wrap_cjk(cue_text, round(15 * line_scale))
         box = draw.multiline_textbbox((0, 0), subtitle, font=subtitle_font, spacing=9, align="center")
         text_height = box[3] - box[1]
         y = height - 92 * sy - text_height
@@ -135,6 +152,38 @@ def overlay_editorial(image: Image.Image, section: dict, local_time: float, cues
                             fill=(255, 255, 255, 255), spacing=9, anchor="ma",
                             align="center", stroke_width=2, stroke_fill=(0, 0, 0, 230))
     return image.convert("RGB")
+
+
+def layout_warnings(section: dict, width: int, height: int, fonts) -> list[str]:
+    """Measure overlay text against its box and report collisions.
+
+    Runs during composition so oversized titles, dense cards, or long
+    subtitles surface as warnings instead of overlapping content in the
+    finished video.
+    """
+    warnings = []
+    sx = width / REFERENCE[0]
+    sy = height / REFERENCE[1]
+    _, line_scale = _layout_scale(width, height)
+    title_font, source_font, body_font, _ = fonts
+    probe = ImageDraw.Draw(Image.new("RGB", (width, height)))
+    title = section.get("title", "")
+    if title:
+        bottom = probe.textbbox((46 * sx, 38 * sy), title, font=title_font)[3]
+        if bottom > 128 * sy - 4:
+            warnings.append(f"title collides with the source badge (reaches y={bottom:.0f})")
+    for card in section.get("cards", []):
+        top = 260 * sy
+        bottom = top + 330 * sy
+        headline = wrap_cjk(card.get("headline", ""), round(17 * line_scale))
+        head_box = probe.multiline_textbbox((82 * sx, top + 42 * sy), headline, font=title_font, spacing=8)
+        body = "\n".join("• " + wrap_cjk(line, round(21 * line_scale)) for line in card.get("lines", []))
+        body_box = probe.multiline_textbbox((82 * sx, top + 160 * sy), body, font=body_font, spacing=13)
+        if head_box[3] > top + 160 * sy - 4:
+            warnings.append(f"card {card.get('headline', '')!r}: headline collides with the bullet lines")
+        if body_box[3] > bottom:
+            warnings.append(f"card {card.get('headline', '')!r}: bullet lines exceed the card box")
+    return warnings
 
 
 def build_audio(audio_files, destination: Path):
@@ -178,18 +227,20 @@ def render_video(sections, durations, destination: Path, fps: int, width: int, h
     stream_out.width, stream_out.height = width, height
     stream_out.pix_fmt = "yuv420p"
     stream_out.options = {"crf": "19", "preset": "medium"}
-    sx = width / REFERENCE[0]
+    font_scale, _ = _layout_scale(width, height)
     fonts = (
-        font(font_path, round(48 * sx)),
-        font(font_path, round(25 * sx)),
-        font(font_path, round(31 * sx)),
-        font(font_path, round(39 * sx)),
+        font(font_path, round(48 * font_scale)),
+        font(font_path, round(25 * font_scale)),
+        font(font_path, round(31 * font_scale)),
+        font(font_path, round(39 * font_scale)),
     )
     frame_cursor = 0
     for section_index, (section, duration) in enumerate(zip(sections, durations), 1):
         source = Path(section["clip"])
         if not source.exists():
             raise FileNotFoundError(source)
+        for warning in layout_warnings(section, width, height, fonts):
+            print(f"  LAYOUT WARNING ({section.get('id', '?')}): {warning}")
         cues = editorial_cues(section["text"], duration)
         required = max(1, round(duration * fps))
         produced = 0

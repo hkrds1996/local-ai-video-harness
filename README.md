@@ -25,7 +25,8 @@ Implemented:
 - conversion of the tested MiniMax H3 browser-canvas workflow into API jobs;
 - independent narration: Edge neural voices with word-boundary SRT subtitles, or fully offline Windows SAPI;
 - deterministic editorial composition: chapter titles, source badges, timed data cards, subtitles, and final audio/video mux;
-- proportional overlay layout for both vertical (9:16) and landscape (16:9) renders;
+- proportional overlay layout for both vertical (9:16) and landscape (16:9) renders, with font growth capped on landscape canvases to prevent text collisions;
+- layout validation during composition that measures text boxes and reports title/card collisions as warnings;
 - a `--post-only` mode that composes a finished video from existing clips without any GPU work;
 - static shot-continuity checks with a JSON report.
 
