@@ -64,12 +64,15 @@ def _prepare_workflow(workflow_source: dict, config: dict, shot: dict, seed: int
     )
     duration = shot_duration(shot, float(config.get("default_duration", 5)))
     if is_canvas:
+        resolution = config.get("resolution", [1344, 768])
         job = convert_h3_canvas(
             workflow_source,
             prompt=shot["prompt"],
             duration=duration,
             seed=seed,
             first_frame_node=first_frame_node,
+            width=int(resolution[0]),
+            height=int(resolution[1]),
         )
         for node in job.values():
             if node.get("class_type") == "SaveVideo":

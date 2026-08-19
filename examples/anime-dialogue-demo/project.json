@@ -20,54 +20,54 @@
   "shots": [
     {
       "id": "cherry-blossoms",
-      "duration": 6,
+      "duration": 10,
       "prompt": "Anime background art, close view of cherry blossom petals falling past a bright spring sky, soft pastel colors, cinematic bloom, soft pastel anime background art, cinematic lighting, no readable text, no logos, no signs"
     },
     {
       "id": "moving-train",
-      "duration": 6,
+      "duration": 10,
       "first_frame_from_previous": true,
       "prompt": "Anime background art, a train crossing green countryside at golden hour, a distant child figure on the platform waving, soft pastel colors, cinematic lighting, no readable text, no logos, no signs"
     },
     {
       "id": "letters-rain",
-      "duration": 6,
+      "duration": 10,
       "first_frame_from_previous": true,
       "prompt": "Anime background art, rain streaking down a window beside an open letter on a wooden desk, warm lamp light, melancholic mood, soft pastel colors, cinematic lighting, no readable text, no logos, no signs"
     },
     {
       "id": "night-train",
-      "duration": 6,
+      "duration": 10,
       "first_frame_from_previous": true,
       "prompt": "Anime background art, night train interior with snow blurring past the windows, dim warm lights, a lone passenger silhouette, soft pastel colors, cinematic lighting, no readable text, no logos, no signs"
     },
     {
       "id": "snowfield-station",
-      "duration": 6,
+      "duration": 10,
       "first_frame_from_previous": true,
       "prompt": "Anime background art, a small snow-covered station at dusk, two distant child silhouettes under a bare cherry tree, falling snow, soft pastel colors, cinematic lighting, no readable text, no logos, no signs"
     },
     {
       "id": "rocket-summer",
-      "duration": 6,
+      "duration": 10,
       "first_frame_from_previous": true,
       "prompt": "Anime background art, a rocket launching over a blue summer sea, white clouds, a small island town below, bright daylight, soft pastel colors, cinematic lighting, no readable text, no logos, no signs"
     },
     {
       "id": "city-night",
-      "duration": 6,
+      "duration": 10,
       "first_frame_from_previous": true,
       "prompt": "Anime background art, an office district at night, glowing windows, a solitary figure on a crosswalk, rain reflections on the asphalt, soft pastel colors, cinematic lighting, no readable text, no logos, no signs"
     },
     {
       "id": "railroad-crossing",
-      "duration": 6,
+      "duration": 10,
       "first_frame_from_previous": true,
       "prompt": "Anime background art, a railroad crossing barrier at sunset, cherry petals in the wind, long shadows, bittersweet mood, soft pastel colors, cinematic lighting, no readable text, no logos, no signs"
     },
     {
       "id": "sky-clouds",
-      "duration": 6,
+      "duration": 10,
       "first_frame_from_previous": true,
       "prompt": "Anime background art, a vast blue sky with slow clouds above a cherry blossom branch, soft light rays, serene ending mood, soft pastel colors, cinematic lighting, no readable text, no logos, no signs"
     }
@@ -97,7 +97,13 @@
           }
         ],
         "rate": "+0%",
-        "pitch": "+2Hz"
+        "pitch": "+2Hz",
+        "clips": [
+          "generated/01_cherry-blossoms_1.mp4",
+          "generated/09_sky-clouds_1.mp4",
+          "generated/03_letters-rain_1.mp4"
+        ],
+        "cut_seconds": 8
       },
       {
         "id": "moving-train",
@@ -118,7 +124,13 @@
           }
         ],
         "rate": "-6%",
-        "pitch": "-2Hz"
+        "pitch": "-2Hz",
+        "clips": [
+          "generated/02_moving-train_1.mp4",
+          "generated/01_cherry-blossoms_1.mp4",
+          "generated/05_snowfield-station_1.mp4"
+        ],
+        "cut_seconds": 8
       },
       {
         "id": "letters-rain",
@@ -139,7 +151,13 @@
           }
         ],
         "rate": "-4%",
-        "pitch": "+0Hz"
+        "pitch": "+0Hz",
+        "clips": [
+          "generated/03_letters-rain_1.mp4",
+          "generated/07_city-night_1.mp4",
+          "generated/09_sky-clouds_1.mp4"
+        ],
+        "cut_seconds": 8
       },
       {
         "id": "night-train",
@@ -160,7 +178,13 @@
           }
         ],
         "rate": "-6%",
-        "pitch": "-2Hz"
+        "pitch": "-2Hz",
+        "clips": [
+          "generated/04_night-train_1.mp4",
+          "generated/02_moving-train_1.mp4",
+          "generated/05_snowfield-station_1.mp4"
+        ],
+        "cut_seconds": 8
       },
       {
         "id": "snowfield-station",
@@ -181,7 +205,13 @@
           }
         ],
         "rate": "-10%",
-        "pitch": "-3Hz"
+        "pitch": "-3Hz",
+        "clips": [
+          "generated/05_snowfield-station_1.mp4",
+          "generated/04_night-train_1.mp4",
+          "generated/01_cherry-blossoms_1.mp4"
+        ],
+        "cut_seconds": 8
       },
       {
         "id": "rocket-summer",
@@ -202,7 +232,13 @@
           }
         ],
         "rate": "+0%",
-        "pitch": "+1Hz"
+        "pitch": "+1Hz",
+        "clips": [
+          "generated/06_rocket-summer_1.mp4",
+          "generated/09_sky-clouds_1.mp4",
+          "generated/07_city-night_1.mp4"
+        ],
+        "cut_seconds": 8
       },
       {
         "id": "city-night",
@@ -223,7 +259,13 @@
           }
         ],
         "rate": "-8%",
-        "pitch": "-3Hz"
+        "pitch": "-3Hz",
+        "clips": [
+          "generated/07_city-night_1.mp4",
+          "generated/06_rocket-summer_1.mp4",
+          "generated/03_letters-rain_1.mp4"
+        ],
+        "cut_seconds": 8
       },
       {
         "id": "railroad-crossing",
@@ -244,7 +286,13 @@
           }
         ],
         "rate": "-6%",
-        "pitch": "-2Hz"
+        "pitch": "-2Hz",
+        "clips": [
+          "generated/08_railroad-crossing_1.mp4",
+          "generated/07_city-night_1.mp4",
+          "generated/09_sky-clouds_1.mp4"
+        ],
+        "cut_seconds": 8
       },
       {
         "id": "sky-clouds",
@@ -255,7 +303,13 @@
         "text": "Haru: People ask why the story still hurts. Riku: Because it isn't about trains, or snow, or even cherry blossoms. Haru: It's about the distance that grows when no one is counting. Riku: Five centimeters per second is slow. Haru: But it never stops. Riku: We measure our lives in the things we let drift. Haru: And in the one thing we refuse to let go. Riku: A promise under a cherry tree. Haru: A station light in the snow. Riku: A crossing where, for one second, we almost met again. Haru: And the courage to turn around. Riku: To turn around. Haru: That is the whole story. Riku: And the whole story is still happening. Haru: Every spring, somewhere, petals fall at five centimeters per second. Riku: And somewhere, someone is still waiting under the tree.",
         "cards": [],
         "rate": "-10%",
-        "pitch": "-3Hz"
+        "pitch": "-3Hz",
+        "clips": [
+          "generated/09_sky-clouds_1.mp4",
+          "generated/01_cherry-blossoms_1.mp4",
+          "generated/08_railroad-crossing_1.mp4"
+        ],
+        "cut_seconds": 8
       }
     ],
     "music_volume": 0.15

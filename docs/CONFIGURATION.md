@@ -58,6 +58,8 @@ Each segment requires `id` and `text`, and references existing media through `cl
 | `source` | Short attribution shown in the source badge |
 | `voice` / `rate` / `pitch` | Per-segment overrides — used for dialogue (one character voice per segment) and emotional pacing |
 | `music_volume` | Per-segment override of `narration.music_volume`; `0` silences the bed for that segment |
+| `clips` | Optional list of clips cycled every `cut_seconds` (cross-cutting) so short generated footage alternates A-B-A-B instead of repeating; `clip` remains the music-bed source and fallback |
+| `cut_seconds` | Cross-cut interval in seconds (default `8`) when `clips` is present |
 | `cards` | Timed data-card overlays: `start`, `end`, `headline`, `lines` |
 
 Cards appear while `start <= local_time < end` within the segment.

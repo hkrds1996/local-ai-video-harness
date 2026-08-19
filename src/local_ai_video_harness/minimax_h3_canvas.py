@@ -53,7 +53,8 @@ def _interface_values(instance, subgraph, overrides):
     return values
 
 
-def convert(canvas_path, prompt=None, duration=None, seed=None, first_frame_node=None):
+def convert(canvas_path, prompt=None, duration=None, seed=None, first_frame_node=None,
+            width=1344, height=768):
     canvas = load(canvas_path) if isinstance(canvas_path, (str, Path)) else copy.deepcopy(canvas_path)
     definitions = {x["id"]: x for x in canvas.get("definitions", {}).get("subgraphs", [])}
     api = {}
@@ -167,8 +168,8 @@ def convert(canvas_path, prompt=None, duration=None, seed=None, first_frame_node
             frames = max(5, round(seconds * 24))
             while frames % 17 != 5:
                 frames += 1
-            node["inputs"]["width"] = 1344
-            node["inputs"]["height"] = 768
+            node["inputs"]["width"] = width
+            node["inputs"]["height"] = height
             node["inputs"]["length"] = frames
     for node_id in [k for k, v in api.items() if v["class_type"] in {"ResolutionSelector", "ComfyMathExpression", "PrimitiveFloat", "MarkdownNote", "Note"}]:
         api.pop(node_id, None)

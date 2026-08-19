@@ -18,6 +18,7 @@ unchanged.
 from __future__ import annotations
 
 import json
+import math
 import re
 import shutil
 from fractions import Fraction
@@ -324,36 +325,44 @@ def render_video(sections, durations, destination: Path, fps: int, width: int, h
     )
     frame_cursor = 0
     for section_index, (section, duration) in enumerate(zip(sections, durations), 1):
-        source = Path(section["clip"])
-        if not source.exists():
-            raise FileNotFoundError(source)
+        sources = [Path(item) for item in (section.get("clips") or [section["clip"]])]
+        for source in sources:
+            if not source.exists():
+                raise FileNotFoundError(source)
         for warning in layout_warnings(section, width, height, fonts):
             print(f"  LAYOUT WARNING ({section.get('id', '?')}): {warning}")
         cues = editorial_cues(section["text"], duration)
         required = max(1, round(duration * fps))
         produced = 0
-        print(f"[{section_index}/{len(sections)}] render {section.get('title', source.name)} ({duration:.1f}s)")
-        while produced < required:
-            container = av.open(str(source))
-            stream = next(item for item in container.streams if item.type == "video")
-            decoded_any = False
-            for frame in container.decode(stream):
-                decoded_any = True
-                if produced >= required:
-                    break
-                image = frame.to_image().resize((width, height), Image.Resampling.LANCZOS)
-                image = image.filter(ImageFilter.GaussianBlur(radius=1.35))
-                image = overlay_editorial(image, section, produced / fps, cues, fonts)
-                output_frame = av.VideoFrame.from_image(image)
-                output_frame.pts = frame_cursor
-                output_frame.time_base = Fraction(1, fps)
-                frame_cursor += 1
-                produced += 1
-                for packet in stream_out.encode(output_frame):
-                    output.mux(packet)
-            container.close()
-            if not decoded_any:
-                raise RuntimeError(f"No frames found in {source}")
+        print(f"[{section_index}/{len(sections)}] render {section.get('title', sources[0].name)} ({duration:.1f}s)")
+        # Cross-cutting: cycle through the section's clips every cut_seconds so
+        # short generated footage alternates (A-B-A-B) instead of repeating.
+        cut_frames = max(1, round(float(section.get("cut_seconds", 8)) * fps))
+        cuts = int(math.ceil(required / cut_frames))
+        for cut in range(cuts):
+            source = sources[cut % len(sources)]
+            target = min(required, (cut + 1) * cut_frames)
+            while produced < target:
+                container = av.open(str(source))
+                stream = next(item for item in container.streams if item.type == "video")
+                decoded_any = False
+                for frame in container.decode(stream):
+                    decoded_any = True
+                    if produced >= target:
+                        break
+                    image = frame.to_image().resize((width, height), Image.Resampling.LANCZOS)
+                    image = image.filter(ImageFilter.GaussianBlur(radius=1.35))
+                    image = overlay_editorial(image, section, produced / fps, cues, fonts)
+                    output_frame = av.VideoFrame.from_image(image)
+                    output_frame.pts = frame_cursor
+                    output_frame.time_base = Fraction(1, fps)
+                    frame_cursor += 1
+                    produced += 1
+                    for packet in stream_out.encode(output_frame):
+                        output.mux(packet)
+                container.close()
+                if not decoded_any:
+                    raise RuntimeError(f"No frames found in {source}")
     for packet in stream_out.encode():
         output.mux(packet)
     output.close()
@@ -391,6 +400,12 @@ def compose(manifest_path: Path, timeline_path: Path, destination: Path):
         section = dict(segment)
         clip = Path(section["clip"])
         section["clip"] = str((base / clip).resolve()) if not clip.is_absolute() else str(clip)
+        if section.get("clips"):
+            resolved = []
+            for item in section["clips"]:
+                path = Path(item)
+                resolved.append(str((base / path).resolve()) if not path.is_absolute() else str(path))
+            section["clips"] = resolved
         section["subtitles"] = generated["subtitles"]
         sections.append(section)
     output_dir = destination.parent
