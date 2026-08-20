@@ -66,6 +66,64 @@ def wrap_cjk(text: str, width: int) -> str:
     return "\n".join(lines)
 
 
+def parse_srt(path: Path):
+    """Parse an SRT file into merged phrase cues (seconds, text).
+
+    Edge word boundaries are merged into readable subtitle phrases instead of
+    flashing one word at a time.
+    """
+    text = path.read_text(encoding="utf-8-sig")
+
+    def clock(value: str) -> float:
+        hours, minutes, rest = value.replace(",", ".").split(":")
+        return int(hours) * 3600 + int(minutes) * 60 + float(rest)
+
+    cues = []
+    for block in re.split(r"\r?\n\s*\r?\n", text.strip()):
+        lines = [line.strip() for line in block.splitlines() if line.strip()]
+        timing = next((i for i, line in enumerate(lines) if " --> " in line), None)
+        if timing is None:
+            continue
+        start, end = lines[timing].split(" --> ", 1)
+        cues.append((clock(start), clock(end), " ".join(lines[timing + 1:])))
+    grouped = []
+    current, current_start, current_end = [], None, None
+    for start, end, cue_text in cues:
+        cue_text = cue_text.strip()
+        projected = sum(len(item) for item in current) + len(cue_text)
+        if current and projected > 18:
+            grouped.append((current_start, current_end, "".join(current)))
+            current, current_start = [], None
+        if current_start is None:
+            current_start = start
+        current.append(cue_text)
+        current_end = end
+        if re.search(r"[。！？；.!?]$", cue_text) and sum(len(item) for item in current) >= 7:
+            grouped.append((current_start, current_end, "".join(current)))
+            current, current_start, current_end = [], None, None
+    if current:
+        grouped.append((current_start, current_end, "".join(current)))
+    return grouped
+
+
+def load_cues(section: dict, duration: float):
+    """Word-accurate subtitle cues from the TTS SRT when available.
+
+    Falls back to proportional cues for providers without word boundaries
+    (SAPI, CosyVoice).
+    """
+    srt_path = section.get("subtitles")
+    if srt_path:
+        try:
+            cues = parse_srt(Path(srt_path))
+            valid = [(max(0.0, s), min(float(duration), e), t) for s, e, t in cues if e > s]
+            if valid:
+                return valid
+        except Exception:
+            pass
+    return editorial_cues(section["text"], duration)
+
+
 def editorial_cues(text: str, duration: float):
     """Split narration text into proportional subtitle cues.
 
@@ -109,7 +167,8 @@ def _layout_scale(width: int, height: int):
     return font_scale, sx / font_scale
 
 
-def overlay_editorial(image: Image.Image, section: dict, local_time: float, cues, fonts):
+def overlay_editorial(image: Image.Image, section: dict, local_time: float, cues, fonts,
+                      caption_style: str = "box"):
     image = image.convert("RGBA")
     draw = ImageDraw.Draw(image, "RGBA")
     width, height = image.size
@@ -154,11 +213,17 @@ def overlay_editorial(image: Image.Image, section: dict, local_time: float, cues
         box = draw.multiline_textbbox((0, 0), subtitle, font=subtitle_font, spacing=9, align="center")
         text_height = box[3] - box[1]
         y = height - 92 * sy - text_height
-        draw.rounded_rectangle((34 * sx, y - 18 * sy, width - 34 * sx, height - 48 * sy), 18,
-                               fill=(0, 0, 0, 184))
-        draw.multiline_text((width / 2, y), subtitle, font=subtitle_font,
-                            fill=(255, 255, 255, 255), spacing=9, anchor="ma",
-                            align="center", stroke_width=2, stroke_fill=(0, 0, 0, 230))
+        if caption_style == "stroke":
+            # Short-video caption look: bold stroke, no box.
+            draw.multiline_text((width / 2, y), subtitle, font=subtitle_font,
+                                fill=(255, 255, 255, 255), spacing=9, anchor="ma",
+                                align="center", stroke_width=4, stroke_fill=(0, 0, 0, 235))
+        else:
+            draw.rounded_rectangle((34 * sx, y - 18 * sy, width - 34 * sx, height - 48 * sy), 18,
+                                   fill=(0, 0, 0, 184))
+            draw.multiline_text((width / 2, y), subtitle, font=subtitle_font,
+                                fill=(255, 255, 255, 255), spacing=9, anchor="ma",
+                                align="center", stroke_width=2, stroke_fill=(0, 0, 0, 230))
     return image.convert("RGB")
 
 
@@ -317,7 +382,8 @@ def build_audio(entries, destination: Path, music_volume: float = 0.0):
     return durations
 
 
-def render_video(sections, durations, destination: Path, fps: int, width: int, height: int, font_path: str):
+def render_video(sections, durations, destination: Path, fps: int, width: int, height: int, font_path: str,
+                 caption_style: str = "box"):
     output = av.open(str(destination), "w")
     stream_out = output.add_stream("libx264", rate=fps)
     stream_out.width, stream_out.height = width, height
@@ -328,11 +394,12 @@ def render_video(sections, durations, destination: Path, fps: int, width: int, h
     # The title must stay clear of the source badge row: its real glyph height
     # (about 1.3x the font size) cannot exceed the 128sy badge start.
     title_size = round(min(48 * font_scale, (128 * sy - 38 * sy - 8) / 1.3))
+    subtitle_size = round(39 * font_scale * (1.25 if caption_style == "stroke" else 1.0))
     fonts = (
         font(font_path, title_size),
         font(font_path, round(25 * font_scale)),
         font(font_path, round(31 * font_scale)),
-        font(font_path, round(39 * font_scale)),
+        font(font_path, subtitle_size),
     )
     frame_cursor = 0
     for section_index, (section, duration) in enumerate(zip(sections, durations), 1):
@@ -342,17 +409,27 @@ def render_video(sections, durations, destination: Path, fps: int, width: int, h
                 raise FileNotFoundError(source)
         for warning in layout_warnings(section, width, height, fonts):
             print(f"  LAYOUT WARNING ({section.get('id', '?')}): {warning}")
-        cues = editorial_cues(section["text"], duration)
+        cues = load_cues(section, duration)
         required = max(1, round(duration * fps))
         produced = 0
         print(f"[{section_index}/{len(sections)}] render {section.get('title', sources[0].name)} ({duration:.1f}s)")
-        # Cross-cutting: cycle through the section's clips every cut_seconds so
-        # short generated footage alternates (A-B-A-B) instead of repeating.
-        cut_frames = max(1, round(float(section.get("cut_seconds", 8)) * fps))
-        cuts = int(math.ceil(required / cut_frames))
-        for cut in range(cuts):
-            source = sources[cut % len(sources)]
-            target = min(required, (cut + 1) * cut_frames)
+        # Content-driven cuts: with multiple clips, switch visuals at sentence
+        # boundaries from the subtitle cues so the picture follows the speech.
+        # With a single clip, the whole section loops that clip as before.
+        if len(sources) > 1:
+            boundaries = [min(required, max(1, round(end * fps))) for _, end, _ in cues]
+            cuts = []
+            prev = 0
+            for boundary in boundaries:
+                if boundary > prev:
+                    cuts.append(boundary)
+                    prev = boundary
+            if not cuts or cuts[-1] < required:
+                cuts.append(required)
+        else:
+            cuts = [required]
+        for cut_index, target in enumerate(cuts):
+            source = sources[cut_index % len(sources)]
             while produced < target:
                 container = av.open(str(source))
                 stream = next(item for item in container.streams if item.type == "video")
@@ -363,7 +440,7 @@ def render_video(sections, durations, destination: Path, fps: int, width: int, h
                         break
                     image = frame.to_image().resize((width, height), Image.Resampling.LANCZOS)
                     image = image.filter(ImageFilter.GaussianBlur(radius=1.35))
-                    image = overlay_editorial(image, section, produced / fps, cues, fonts)
+                    image = overlay_editorial(image, section, produced / fps, cues, fonts, caption_style)
                     output_frame = av.VideoFrame.from_image(image)
                     output_frame.pts = frame_cursor
                     output_frame.time_base = Fraction(1, fps)
@@ -409,7 +486,7 @@ def compose(manifest_path: Path, timeline_path: Path, destination: Path):
     sections = []
     for segment, generated in zip(narration_segments, timeline_segments):
         section = dict(segment)
-        clip = Path(section["clip"])
+        clip = Path(section.get("clip") or (section.get("clips") or [""])[0])
         section["clip"] = str((base / clip).resolve()) if not clip.is_absolute() else str(clip)
         if section.get("clips"):
             resolved = []
@@ -427,7 +504,7 @@ def compose(manifest_path: Path, timeline_path: Path, destination: Path):
     music_volume = float(narration.get("music_volume", 0.0) or 0.0)
     entries = []
     for segment, generated in zip(narration_segments, timeline_segments):
-        clip = Path(segment["clip"])
+        clip = Path(segment.get("clip") or (segment.get("clips") or [""])[0])
         clip_path = (base / clip).resolve() if not clip.is_absolute() else clip
         volume = float(segment.get("music_volume", music_volume))
         entries.append((Path(generated["audio"]), clip_path if clip_path.exists() else None, volume))
@@ -441,6 +518,7 @@ def compose(manifest_path: Path, timeline_path: Path, destination: Path):
         int(render.get("width", REFERENCE[0])),
         int(render.get("height", REFERENCE[1])),
         render.get("font", "C:/Windows/Fonts/msyh.ttc"),
+        render.get("caption_style", "box"),
     )
     remux(video_temp, audio_temp, destination)
     print(f"Final editorial video: {destination}")
