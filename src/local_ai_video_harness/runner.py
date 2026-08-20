@@ -252,6 +252,7 @@ class PostproductionRunner:
             rate=narration.get("rate"),
             pitch=narration.get("pitch"),
             force=self.force_tts,
+            cosyvoice=self.config.get("cosyvoice"),
         )
         from .editorial import compose
         final_output = self.out_dir / self.project.get("render", {}).get("final_output", "final-editorial.mp4")

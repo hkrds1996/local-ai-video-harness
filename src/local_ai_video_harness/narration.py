@@ -1,12 +1,17 @@
 """Independent narration synthesis and subtitle generation.
 
-Two providers are supported:
+Three providers are supported:
 
 - ``edge`` (default): Microsoft Edge neural voices through ``edge-tts``, which
   streams word boundaries that become accurate SRT subtitles. Requires network
   access.
 - ``sapi``: the Windows Speech API, fully offline. Subtitles are derived from
   proportional timing over the narrated text.
+- ``cosyvoice``: a local CosyVoice 2 instance (Alibaba FunAudioLLM) in
+  ``--instruct`` mode. Each segment may carry an ``emotion`` prompt such as
+  "用低沉悲伤的语气说", so delivery follows the scene instead of a flat read.
+  Fully offline after install. Machine paths (venv python, model dir, reference
+  audio) come from the local config's ``cosyvoice`` block.
 
 Every segment produces an audio file and an SRT file inside ``output_dir``,
 plus a ``timeline.json`` that records each segment's media paths in order.
@@ -83,24 +88,66 @@ def _sapi_segment(text: str, media: Path, subtitles: Path, voice: str, rate: int
     subtitles.write_text(rough_srt(text, duration), encoding="utf-8")
 
 
+def _instruct_for(emotion: str) -> str:
+    """Normalize a shorthand emotion into a CosyVoice instruct prompt."""
+    emotion = (emotion or "").strip()
+    if not emotion:
+        return "用平静的语气说"
+    if emotion.endswith("说"):
+        return emotion
+    return f"用{emotion}的语气说"
+
+
+def _run_cosyvoice_batch(segments: list, output_dir: Path, settings: dict) -> dict:
+    """Synthesize all segments in one model load; return {stem: wav_path}."""
+    batch_dir = output_dir / "_cosy_batch"
+    batch_dir.mkdir(parents=True, exist_ok=True)
+    jobs = [{"stem": f"{index:02d}_{segment.get('id', f'segment-{index:02d}')}",
+             "text": segment["text"],
+             "instruct": _instruct_for(segment.get("emotion", ""))}
+            for index, segment in enumerate(segments, 1)]
+    job_path = batch_dir / "segments.json"
+    job_path.write_text(json.dumps(jobs, ensure_ascii=False, indent=2), encoding="utf-8")
+    subprocess.run([
+        settings["python"], settings["batch_script"],
+        settings["model_dir"], settings["prompt_wav"],
+        str(job_path), str(batch_dir),
+    ], check=True)
+    outputs = {}
+    for job in jobs:
+        wav = batch_dir / f"{job['stem']}.wav"
+        if not wav.exists():
+            raise RuntimeError(f"CosyVoice produced no audio for {job['stem']}")
+        outputs[job["stem"]] = wav
+    return outputs
+
+
 def generate_timeline(project: dict, output_dir: Path, provider: str = "edge", voice: str = None,
-                      rate: str = None, pitch: str = "+0Hz", force: bool = False) -> Path:
+                      rate: str = None, pitch: str = "+0Hz", force: bool = False,
+                      cosyvoice: dict = None) -> Path:
     """Synthesize one audio + subtitle pair per narration segment.
 
     Writes ``timeline.json`` into ``output_dir`` and returns its path.
-    Existing files are reused unless ``force`` is set.
+    Existing files are reused unless ``force`` is set. The ``cosyvoice``
+    settings dict comes from the local configuration.
     """
     narration = project.get("narration", {})
     segments = narration.get("segments", [])
     if not segments:
         raise ValueError("narration.segments is empty")
-    if provider not in {"edge", "sapi"}:
+    if provider not in {"edge", "sapi", "cosyvoice"}:
         raise ValueError(f"unknown narration provider: {provider}")
     voice = voice or narration.get("voice") or (
         "zh-CN-YunxiNeural" if provider == "edge" else "Microsoft Huihui Desktop"
     )
     rate = rate or narration.get("rate") or ("-4%" if provider == "edge" else "0")
     output_dir.mkdir(parents=True, exist_ok=True)
+
+    cosy_outputs = {}
+    if provider == "cosyvoice":
+        if not cosyvoice:
+            raise ValueError("cosyvoice provider requires a 'cosyvoice' block in the local config")
+        cosy_outputs = _run_cosyvoice_batch(segments, output_dir, cosyvoice)
 
     timeline = []
     for index, segment in enumerate(segments, 1):
@@ -118,6 +165,13 @@ def generate_timeline(project: dict, output_dir: Path, provider: str = "edge", v
             print(f"[{index}/{len(segments)}] TTS {segment.get('title', stem)}")
             if provider == "edge":
                 asyncio.run(_edge_segment(segment["text"], media, subtitles, segment_voice, segment_rate, segment_pitch))
+            elif provider == "cosyvoice":
+                import shutil
+                import wave
+                shutil.copy2(cosy_outputs[stem], media)
+                with wave.open(str(media), "rb") as wav:
+                    duration = wav.getnframes() / wav.getframerate()
+                subtitles.write_text(rough_srt(segment["text"], duration), encoding="utf-8")
             else:
                 _sapi_segment(segment["text"], media, subtitles, segment_voice, int(segment_rate))
         timeline.append({

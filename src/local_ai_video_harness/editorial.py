@@ -193,9 +193,17 @@ def layout_warnings(section: dict, width: int, height: int, fonts) -> list[str]:
 
 
 def _resample_to_ndarray(path: Path):
-    """Decode a file's audio stream to a stereo float32 ndarray (channels, samples)."""
+    """Decode a file's audio stream to a stereo float32 ndarray (channels, samples).
+
+    Returns None when the file has no audio stream (e.g. chart or screenshot
+    clips), letting the music-bed mixer fall back to the plain TTS track.
+    """
     container = av.open(str(path))
-    stream = next(item for item in container.streams if item.type == "audio")
+    try:
+        stream = next(item for item in container.streams if item.type == "audio")
+    except StopIteration:
+        container.close()
+        return None
     resampler = av.AudioResampler(format="fltp", layout="stereo", rate=48000)
     chunks = []
     for frame in container.decode(stream):
@@ -272,11 +280,14 @@ def build_audio(entries, destination: Path, music_volume: float = 0.0):
     stream_out = output.add_stream("aac", rate=48000)
     stream_out.layout = "stereo"
     stream_out.bit_rate = 192000
-    resampler = av.AudioResampler(format="fltp", layout="stereo", rate=48000)
     cursor = 0
     durations = []
     for index, (audio_path, clip_path, volume) in enumerate(entries):
         start = cursor
+        # One resampler per source: mixed tracks are 48k stereo while TTS
+        # audio is often 24k mono; sharing a resampler across both throws
+        # "Frame does not match AudioResampler setup".
+        resampler = av.AudioResampler(format="fltp", layout="stereo", rate=48000)
         if music_volume and volume and clip_path is not None:
             mixed = audio_path.parent / f"_mixed_{index:02d}.m4a"
             _mix_music_bed(Path(audio_path), clip_path, volume, mixed)
@@ -292,14 +303,14 @@ def build_audio(entries, destination: Path, music_volume: float = 0.0):
                 cursor += converted.samples
                 for packet in stream_out.encode(converted):
                     output.mux(packet)
+        for converted in resampler.resample(None):
+            converted.pts = cursor
+            converted.time_base = Fraction(1, 48000)
+            cursor += converted.samples
+            for packet in stream_out.encode(converted):
+                output.mux(packet)
         container.close()
         durations.append((cursor - start) / 48000)
-    for converted in resampler.resample(None):
-        converted.pts = cursor
-        converted.time_base = Fraction(1, 48000)
-        cursor += converted.samples
-        for packet in stream_out.encode(converted):
-            output.mux(packet)
     for packet in stream_out.encode():
         output.mux(packet)
     output.close()
